@@ -1,0 +1,65 @@
+const express = require('express');
+const cors = require('cors'); // Allows your frontend to talk to this backend
+const app = express();
+const port = 3001; // The port your backend will run on
+
+// --- Middleware ---
+app.use(cors()); // Enable CORS for all routes
+app.use(express.json()); // Allow the server to understand JSON from requests
+
+// --- In-Memory Database (No DB setup needed!) ---
+let orders = [];
+let orderIdCounter = 1;
+const menu = [
+  { id: 1, name: 'Paneer Butter Masala', price: 250, image: 'paneer.jpg' },
+  { id: 2, name: 'Garlic Naan', price: 50, image: 'naan.jpg' },
+  { id: 3, name: 'Coke', price: 40, image: 'coke.jpg' },
+];
+
+// --- API Endpoints ---
+
+// GET /api/menu -> Returns the hardcoded menu
+app.get('/api/menu', (req, res) => {
+  console.log('Request received for /api/menu');
+  res.json(menu);
+});
+
+// POST /api/orders -> Receives a new order and adds it to our "database"
+app.post('/api/orders', (req, res) => {
+  const newOrder = { 
+    id: orderIdCounter++, 
+    items: req.body.items, 
+    status: 'Pending', // Default status
+    timestamp: new Date().toLocaleTimeString() 
+  };
+  orders.push(newOrder);
+  console.log('New Order Received:', newOrder);
+  res.status(201).json(newOrder);
+});
+
+// GET /api/orders -> Returns all current orders for the admin dashboard
+app.get('/api/orders', (req, res) => {
+  console.log('Request received for /api/orders');
+  res.json(orders);
+});
+
+// PUT /api/orders/:id/status -> Updates the status of a specific order
+app.put('/api/orders/:id/status', (req, res) => {
+  const orderId = parseInt(req.params.id);
+  const newStatus = req.body.status;
+  const order = orders.find(o => o.id === orderId);
+
+  if (order) {
+    order.status = newStatus;
+    console.log(`Updated order ${orderId} to status: ${newStatus}`);
+    res.json(order);
+  } else {
+    res.status(404).send('Order not found');
+  }
+});
+
+
+// --- Start the Server ---
+app.listen(port, () => {
+  console.log(`✅ Backend server running at http://localhost:${port}`);
+});
