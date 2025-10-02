@@ -1,13 +1,16 @@
-.App { text-align: center; }
-.App-header { background-color: #282c34; padding: 20px; color: white; margin-bottom: 2rem; }
-.order-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; }
-.order-card { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; width: 300px; text-align: left; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-.order-card h3 { margin-top: 0; }
-.order-card ul { list-style: none; padding: 0; }
-.status { padding: 0.2rem 0.5rem; border-radius: 4px; color: white; }
-.status.pending { background-color: #f0ad4e; }
-.status.preparing { background-color: #0275d8; }
-.status.ready { background-color: #5cb85c; }
-.status.completed { background-color: #6c757d; }
-.button-group { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
-.button-group button { border: none; padding: 0.5rem; border-radius: 4px; color: white; background-color: #282c34; cursor: pointer; }
+/* (Your existing CSS code) */
+
+.button-group button { 
+  border: none; 
+  padding: 0.5rem; 
+  border-radius: 4px; 
+  color: white; 
+  background-color: #282c34; 
+  cursor: pointer; 
+}
+
+/* NEW: Add this style for completed orders */
+.order-card.completed {
+  opacity: 0.6;
+  background-color: #f9f9f9;
+}
