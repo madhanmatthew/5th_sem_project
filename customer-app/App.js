@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, FlatList, Button, Alert, SafeAreaView, TouchableOpacity } from 'react-native';
 
-const API_URL = 'http://192.168.X.X:3001'; // IMPORTANT: REPLACE WITH YOUR COMPUTER'S IP ADDRESS
+const API_URL = 'http://192.168.29.123:3001'; // IMPORTANT: REPLACE WITH YOUR COMPUTER'S IP ADDRESS
 
 export default function App() {
   const [menu, setMenu] = useState([]);
