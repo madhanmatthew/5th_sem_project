@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, Button, Alert, SafeAreaView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, FlatList, Button, Alert, SafeAreaView, TouchableOpacity, Image, ActivityIndicator, Vibration } from 'react-native';
 
 // Use localhost because Expo Tunnel will automatically handle the connection.
 const API_URL = 'http://localhost:3001';
@@ -7,10 +7,11 @@ const API_URL = 'http://localhost:3001';
 export default function App() {
   const [menu, setMenu] = useState([]);
   const [cart, setCart] = useState([]);
-  
-  // NEW: State to manage the current view and the active order
-  const [view, setView] = useState('menu'); // Can be 'menu' or 'orderStatus'
+  const [view, setView] = useState('menu');
   const [activeOrder, setActiveOrder] = useState(null);
+  
+  // NEW: State for the notification banner
+  const [notification, setNotification] = useState(null);
 
   // --- Functions for Menu and Cart ---
   useEffect(() => {
@@ -30,17 +31,14 @@ export default function App() {
     setCart((currentCart) => {
       const existingItem = currentCart.find((cartItem) => cartItem.id === item.id);
       if (existingItem) {
-        // If item already exists in cart, increase its quantity
         return currentCart.map((cartItem) =>
           cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem
         );
       }
-      // Otherwise, add the new item to the cart with quantity 1
       return [...currentCart, { ...item, quantity: 1 }];
     });
   };
 
-  // MODIFIED: This function now switches to the order status view after success
   const placeOrder = async () => {
     if (cart.length === 0) return;
     try {
@@ -49,10 +47,10 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: cart }),
       });
-      const newOrder = await response.json(); // Get the new order details back from the server
-      setActiveOrder(newOrder); // Save the active order
-      setView('orderStatus'); // Switch to the status view
-      setCart([]); // Clear the cart
+      const newOrder = await response.json();
+      setActiveOrder(newOrder);
+      setView('orderStatus');
+      setCart([]);
     } catch (error) {
       Alert.alert("Error", "Could not place your order.");
     }
@@ -62,7 +60,6 @@ export default function App() {
 
   // --- UI Rendering ---
 
-  // The main menu and cart view
   const MenuView = () => (
     <>
       <View style={styles.header}>
@@ -95,14 +92,27 @@ export default function App() {
     </>
   );
 
-  // NEW: The component for the Order Status view
   const OrderStatusView = () => {
-    // This effect will poll for status updates every 5 seconds
+    // NEW: Use a ref to store the previous status message to detect changes
+    const prevMessageRef = useRef();
+    
+    useEffect(() => {
+      prevMessageRef.current = activeOrder?.message;
+    }, [activeOrder]);
+
     useEffect(() => {
       const fetchOrderStatus = async () => {
         try {
           const response = await fetch(`${API_URL}/api/orders/${activeOrder.id}`);
           const updatedOrder = await response.json();
+
+          // NEW: Check if the message has changed
+          if (updatedOrder.message !== prevMessageRef.current) {
+            Vibration.vibrate(); // Vibrate the phone
+            setNotification(updatedOrder.message); // Show the notification banner
+            setTimeout(() => setNotification(null), 4000); // Hide banner after 4 seconds
+          }
+          
           setActiveOrder(updatedOrder);
         } catch (error) {
           console.error("Failed to fetch order status");
@@ -110,11 +120,10 @@ export default function App() {
       };
 
       const interval = setInterval(fetchOrderStatus, 5000);
-      return () => clearInterval(interval); // Cleanup on unmount
+      return () => clearInterval(interval);
     }, []);
 
     if (!activeOrder) return null;
-
     const statusStyle = styles[`status_${activeOrder.status.toLowerCase()}`] || {};
 
     return (
@@ -138,9 +147,14 @@ export default function App() {
     );
   };
 
-
   return (
     <SafeAreaView style={styles.container}>
+      {/* NEW: Conditionally render the notification banner */}
+      {notification && (
+        <View style={styles.notificationBanner}>
+          <Text style={styles.notificationText}>{notification}</Text>
+        </View>
+      )}
       {view === 'menu' ? <MenuView /> : <OrderStatusView />}
     </SafeAreaView>
   );
@@ -148,6 +162,7 @@ export default function App() {
 
 // --- Styles ---
 const styles = StyleSheet.create({
+  // ... (all your existing styles)
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   header: { padding: 20, backgroundColor: '#282c34' },
   headerText: { color: 'white', fontSize: 24, textAlign: 'center', fontWeight: 'bold' },
@@ -163,36 +178,32 @@ const styles = StyleSheet.create({
   totalText: { fontSize: 18, fontWeight: 'bold', marginTop: 10, textAlign: 'right' },
   orderButton: { backgroundColor: '#5cb85c', padding: 15, borderRadius: 8, marginTop: 10 },
   orderButtonText: { color: 'white', textAlign: 'center', fontSize: 18, fontWeight: 'bold' },
-  
-  // NEW: Styles for the Order Status View
-  statusContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
+  statusContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
   statusTitle: { fontSize: 26, fontWeight: 'bold', color: 'white' },
-  statusMessage: {
-    fontSize: 20,
-    textAlign: 'center',
-    marginVertical: 20,
-    fontWeight: '500',
-  },
+  statusMessage: { fontSize: 20, textAlign: 'center', marginVertical: 20, fontWeight: '500' },
   statusSubText: { fontSize: 14, color: '#f0f0f0', marginTop: 10 },
-  newOrderButton: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
-    marginTop: 30,
-    width: '100%',
-  },
-  
-  // NEW: Dynamic styles based on order status
+  newOrderButton: { backgroundColor: 'white', padding: 15, borderRadius: 8, marginTop: 30, width: '100%' },
   status_pending: { container: { backgroundColor: '#f0ad4e' }, text: { color: 'white' }, buttonText: {color: '#333'} },
   status_queued: { container: { backgroundColor: '#0275d8' }, text: { color: 'white' }, buttonText: {color: '#333'} },
   status_preparing: { container: { backgroundColor: '#5bc0de' }, text: { color: 'white' }, buttonText: {color: '#333'} },
   status_ready: { container: { backgroundColor: '#5cb85c' }, text: { color: 'white' }, buttonText: {color: '#333'} },
   status_completed: { container: { backgroundColor: '#6c757d' }, text: { color: 'white' }, buttonText: {color: '#333'} },
   status_cancelled: { container: { backgroundColor: '#d9534f' }, text: { color: 'white' }, buttonText: {color: '#333'} },
-});
 
+  // NEW: Styles for the notification banner
+  notificationBanner: {
+    position: 'absolute',
+    top: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    padding: 15,
+    borderRadius: 10,
+    zIndex: 1000,
+  },
+  notificationText: {
+    color: 'white',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+});
