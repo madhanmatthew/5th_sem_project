@@ -44,6 +44,22 @@ app.get('/api/orders', (req, res) => {
   res.json(orders);
 });
 
+// MODIFIED: This endpoint now accepts both a status and a message
+app.put('/api/orders/:id/status', (req, res) => {
+  const orderId = parseInt(req.params.id);
+  const { status, message } = req.body; // Destructure both from the request
+  const order = orders.find(o => o.id === orderId);
+
+  if (order) {
+    order.status = status;
+    order.message = message;
+    console.log(`Updated order ${orderId} to status: ${status}, message: ${message}`);
+    res.json(order);
+  } else {
+    res.status(404).send('Order not found');
+  }
+});
+
 
    
 // POST /api/orders -> Receives a new order and adds it to our "database"
