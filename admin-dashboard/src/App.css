@@ -26,3 +26,48 @@
   opacity: 0.6;
   background-color: #f9f9f9;
 }
+
+.order-card {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 1rem;
+  width: 300px;
+  text-align: left;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-left: 5px solid #f0ad4e; /* Default for Pending */
+}
+
+/* NEW: Border colors for different statuses */
+.order-card.queued { border-left-color: #0275d8; }
+.order-card.preparing { border-left-color: #5bc0de; }
+.order-card.ready { border-left-color: #5cb85c; }
+.order-card.completed { border-left-color: #6c757d; opacity: 0.7; }
+.order-card.cancelled { border-left-color: #d9534f; opacity: 0.7; }
+
+.status.cancelled { background-color: #d9534f; }
+
+.button-group {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.button-group button, .button-group select {
+  border: 1px solid #ccc;
+  padding: 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: #f9f9f;
+}
+
+.button-group .cancel-btn {
+  background-color: #d9534f;
+  color: white;
+  border: none;
+}
+.button-group .complete-btn {
+  background-color: #5cb85c;
+  color: white;
+  border: none;
+}
