@@ -25,6 +25,27 @@ app.get('/api/menu', (req, res) => {
   res.json(menu);
 });
 
+// MODIFIED: Orders now have a 'status' and a 'message'
+app.post('/api/orders', (req, res) => {
+  const newOrder = { 
+    id: orderIdCounter++, 
+    items: req.body.items, 
+    status: 'Pending', // The keyword for the status
+    message: 'Your order has been placed and is waiting for confirmation.', // The customer-facing message
+    timestamp: new Date().toLocaleTimeString() 
+  };
+  orders.push(newOrder);
+  console.log('New Order Received:', newOrder);
+  res.status(201).json(newOrder);
+});
+
+app.get('/api/orders', (req, res) => {
+  console.log('Request received for /api/orders');
+  res.json(orders);
+});
+
+
+   
 // POST /api/orders -> Receives a new order and adds it to our "database"
 app.post('/api/orders', (req, res) => {
   const newOrder = { 
