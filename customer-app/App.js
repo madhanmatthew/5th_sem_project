@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, Button, Alert, SafeAreaView, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, FlatList, Button, Alert, SafeAreaView, TouchableOpacity, Image } from 'react-native'; // MODIFIED: Add Image
 
 const API_URL = 'http://192.168.29.123:3001'; // IMPORTANT: REPLACE WITH YOUR COMPUTER'S IP ADDRESS
 
@@ -68,16 +68,22 @@ export default function App() {
       </View>
 
       <FlatList
-        data={menu}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.menuItem}>
-            <Text style={styles.itemName}>{item.name} - ₹{item.price}</Text>
-            <Button title="Add to Cart" onPress={() => addToCart(item)} />
-          </View>
-        )}
-        style={styles.menuList}
-      />
+  data={menu}
+  keyExtractor={(item) => item.id.toString()}
+  renderItem={({ item }) => (
+    <View style={styles.menuItem}>
+      {/* NEW: Image component */}
+      <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.dishImage} />
+      <View style={styles.itemDetails}>
+        <Text style={styles.itemName}>{item.name} - ₹{item.price}</Text>
+      </View>
+      <View style={styles.addButton}>
+        <Button title="Add" onPress={() => addToCart(item)} />
+      </View>
+    </View>
+  )}
+  style={styles.menuList}
+/>
 
       <View style={styles.cartContainer}>
         <Text style={styles.cartTitle}>Your Cart</Text>
@@ -106,4 +112,23 @@ const styles = StyleSheet.create({
   totalText: { fontSize: 18, fontWeight: 'bold', marginTop: 10, textAlign: 'right' },
   orderButton: { backgroundColor: '#5cb85c', padding: 15, borderRadius: 8, marginTop: 10 },
   orderButtonText: { color: 'white', textAlign: 'center', fontSize: 18, fontWeight: 'bold' },
+    menuItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: 'white' },
+
+  // NEW: Styles for the image and text layout
+  dishImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 15,
+  },
+  itemDetails: {
+    flex: 1, // Allows the item name to take up available space
+  },
+  itemName: { 
+    fontSize: 18, 
+    fontWeight: '500' // Make the font a bit bolder
+  },
+  addButton: {
+    marginLeft: 10,
+  },
 });

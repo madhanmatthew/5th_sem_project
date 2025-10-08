@@ -6,14 +6,15 @@ const port = 3001; // The port your backend will run on
 // --- Middleware ---
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json()); // Allow the server to understand JSON from requests
+app.use(express.static('public')); // NEW: Serve static files from the 'public' folder
 
 // --- In-Memory Database (No DB setup needed!) ---
 let orders = [];
 let orderIdCounter = 1;
 const menu = [
-  { id: 1, name: 'Paneer Butter Masala', price: 250, image: 'paneer.jpg' },
-  { id: 2, name: 'Garlic Naan', price: 50, image: 'naan.jpg' },
-  { id: 3, name: 'Coke', price: 40, image: 'coke.jpg' },
+  { id: 1, name: 'Paneer Butter Masala', price: 250, image: '/images/paneer.jpg' },
+  { id: 2, name: 'Garlic Naan', price: 50, image: '/images/naan.jpg' },
+  { id: 3, name: 'Coke', price: 40, image: '/images/coke.jpg' },
 ];
 
 // --- API Endpoints ---
