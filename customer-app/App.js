@@ -1,8 +1,11 @@
+// Change this at the top of your customer-app/App.js file
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, FlatList, Button, Alert, SafeAreaView, TouchableOpacity, Image, ActivityIndicator, Vibration } from 'react-native';
+import { StyleSheet, Text, View, FlatList, Button, Alert, TouchableOpacity, Image, ActivityIndicator, Vibration } from 'react-native';
+//import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context'; // CORRECTED IMPORT
 
 // Use localhost because Expo Tunnel will automatically handle the connection.
-const API_URL = 'http://localhost:3001';
+const API_URL = 'http://20.101.2.126:3001';
 
 export default function App() {
   const [menu, setMenu] = useState([]);
