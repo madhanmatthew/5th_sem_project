@@ -1,17 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, FlatList, Button, Alert, SafeAreaView, TouchableOpacity, Image, ActivityIndicator, Vibration } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  FlatList,
+  Button,
+  Alert,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+  Vibration,
+} from 'react-native';
+// CORRECTED IMPORT: SafeAreaProvider and SafeAreaView are now imported from the correct library
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-// Use localhost because Expo Tunnel will automatically handle the connection.
-const API_URL = 'http://localhost:3001';
+// IMPROVEMENT: Centralized server IP for easier updates
+const SERVER_IP = '20.101.2.134'; // <-- CHANGE ONLY THIS LINE WITH YOUR SERVER'S IP
+const API_URL = `http://${SERVER_IP}:3001`;
 
 export default function App() {
   const [menu, setMenu] = useState([]);
   const [cart, setCart] = useState([]);
   const [view, setView] = useState('menu');
   const [activeOrder, setActiveOrder] = useState(null);
-  
-  // NEW: State for the notification banner
   const [notification, setNotification] = useState(null);
+  
+  // ENHANCEMENT: Added loading state for a better user experience
+  const [isLoading, setIsLoading] = useState(true);
 
   // --- Functions for Menu and Cart ---
   useEffect(() => {
@@ -21,7 +36,10 @@ export default function App() {
         const data = await response.json();
         setMenu(data);
       } catch (error) {
-        Alert.alert("Connection Error", "Could not fetch menu.");
+        Alert.alert('Connection Error', 'Could not fetch menu from the server.');
+      } finally {
+        // ENHANCEMENT: Stop loading indicator after fetch is complete
+        setIsLoading(false);
       }
     };
     fetchMenu();
@@ -52,7 +70,7 @@ export default function App() {
       setView('orderStatus');
       setCart([]);
     } catch (error) {
-      Alert.alert("Error", "Could not place your order.");
+      Alert.alert('Error', 'Could not place your order.');
     }
   };
 
@@ -60,68 +78,81 @@ export default function App() {
 
   // --- UI Rendering ---
 
-  const MenuView = () => (
-    <>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>Restaurant Menu</Text>
-      </View>
-      <FlatList
-        data={menu}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.menuItem}>
-            <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.dishImage} />
-            <View style={styles.itemDetails}>
-              <Text style={styles.itemName}>{item.name} - ₹{item.price}</Text>
+  const MenuView = () => {
+    // ENHANCEMENT: Show loading indicator while fetching menu
+    if (isLoading) {
+      return (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#282c34" />
+          <Text style={{marginTop: 10}}>Loading Menu...</Text>
+        </View>
+      );
+    }
+
+    return (
+      <>
+        <View style={styles.header}>
+          <Text style={styles.headerText}>Restaurant Menu</Text>
+        </View>
+        <FlatList
+          data={menu}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <View style={styles.menuItem}>
+              <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.dishImage} />
+              <View style={styles.itemDetails}>
+                <Text style={styles.itemName}>{item.name} - ₹{item.price}</Text>
+              </View>
+              <View style={styles.addButton}>
+                <Button title="Add" onPress={() => addToCart(item)} />
+              </View>
             </View>
-            <View style={styles.addButton}>
-              <Button title="Add" onPress={() => addToCart(item)} />
-            </View>
-          </View>
-        )}
-        style={styles.menuList}
-      />
-      <View style={styles.cartContainer}>
-        <Text style={styles.cartTitle}>Your Cart</Text>
-        {cart.map(item => ( <Text key={item.id} style={styles.cartItem}>{item.quantity} x {item.name}</Text> ))}
-        <Text style={styles.totalText}>Total: ₹{totalCost}</Text>
-        <TouchableOpacity style={styles.orderButton} onPress={placeOrder}>
-          <Text style={styles.orderButtonText}>Place Order</Text>
-        </TouchableOpacity>
-      </View>
-    </>
-  );
+          )}
+          style={styles.menuList}
+        />
+        <View style={styles.cartContainer}>
+          <Text style={styles.cartTitle}>Your Cart</Text>
+          {cart.map(item => ( <Text key={item.id} style={styles.cartItem}>{item.quantity} x {item.name}</Text> ))}
+          <Text style={styles.totalText}>Total: ₹{totalCost}</Text>
+          <TouchableOpacity style={styles.orderButton} onPress={placeOrder}>
+            <Text style={styles.orderButtonText}>Place Order</Text>
+          </TouchableOpacity>
+        </View>
+      </>
+    );
+  };
 
   const OrderStatusView = () => {
-    // NEW: Use a ref to store the previous status message to detect changes
     const prevMessageRef = useRef();
-    
-    useEffect(() => {
-      prevMessageRef.current = activeOrder?.message;
-    }, [activeOrder]);
 
     useEffect(() => {
+        prevMessageRef.current = activeOrder?.message;
+    }, [activeOrder]);
+    
+    // BUG FIX: Added activeOrder.id to the dependency array
+    useEffect(() => {
+      if (!activeOrder?.id) return;
+
       const fetchOrderStatus = async () => {
         try {
           const response = await fetch(`${API_URL}/api/orders/${activeOrder.id}`);
           const updatedOrder = await response.json();
 
-          // NEW: Check if the message has changed
           if (updatedOrder.message !== prevMessageRef.current) {
-            Vibration.vibrate(); // Vibrate the phone
-            setNotification(updatedOrder.message); // Show the notification banner
-            setTimeout(() => setNotification(null), 4000); // Hide banner after 4 seconds
+            Vibration.vibrate();
+            setNotification(updatedOrder.message);
+            setTimeout(() => setNotification(null), 4000);
           }
           
           setActiveOrder(updatedOrder);
         } catch (error) {
-          console.error("Failed to fetch order status");
+          console.error('Failed to fetch order status');
         }
       };
 
       const interval = setInterval(fetchOrderStatus, 5000);
       return () => clearInterval(interval);
-    }, []);
+    }, [activeOrder?.id]); // <-- CORRECT DEPENDENCY
 
     if (!activeOrder) return null;
     const statusStyle = styles[`status_${activeOrder.status.toLowerCase()}`] || {};
@@ -148,22 +179,24 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* NEW: Conditionally render the notification banner */}
-      {notification && (
-        <View style={styles.notificationBanner}>
-          <Text style={styles.notificationText}>{notification}</Text>
-        </View>
-      )}
-      {view === 'menu' ? <MenuView /> : <OrderStatusView />}
-    </SafeAreaView>
+    // CORRECTED WRAPPER: App is wrapped in SafeAreaProvider
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
+        {notification && (
+          <View style={styles.notificationBanner}>
+            <Text style={styles.notificationText}>{notification}</Text>
+          </View>
+        )}
+        {view === 'menu' ? <MenuView /> : <OrderStatusView />}
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
 // --- Styles ---
 const styles = StyleSheet.create({
-  // ... (all your existing styles)
   container: { flex: 1, backgroundColor: '#f5f5f5' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { padding: 20, backgroundColor: '#282c34' },
   headerText: { color: 'white', fontSize: 24, textAlign: 'center', fontWeight: 'bold' },
   menuList: { flex: 1 },
@@ -189,8 +222,6 @@ const styles = StyleSheet.create({
   status_ready: { container: { backgroundColor: '#5cb85c' }, text: { color: 'white' }, buttonText: {color: '#333'} },
   status_completed: { container: { backgroundColor: '#6c757d' }, text: { color: 'white' }, buttonText: {color: '#333'} },
   status_cancelled: { container: { backgroundColor: '#d9534f' }, text: { color: 'white' }, buttonText: {color: '#333'} },
-
-  // NEW: Styles for the notification banner
   notificationBanner: {
     position: 'absolute',
     top: 40,
