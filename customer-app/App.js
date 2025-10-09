@@ -1,4 +1,6 @@
+// Change this at the top of your customer-app/App.js file
 import React, { useState, useEffect, useRef } from 'react';
+<<<<<<< HEAD
 import {
   StyleSheet,
   Text,
@@ -17,6 +19,14 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 // IMPROVEMENT: Centralized server IP for easier updates
 const SERVER_IP = '20.101.2.134'; // <-- CHANGE ONLY THIS LINE WITH YOUR SERVER'S IP
 const API_URL = `http://${SERVER_IP}:3001`;
+=======
+import { StyleSheet, Text, View, FlatList, Button, Alert, TouchableOpacity, Image, ActivityIndicator, Vibration } from 'react-native';
+//import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context'; // CORRECTED IMPORT
+
+// Use localhost because Expo Tunnel will automatically handle the connection.
+const API_URL = 'http://20.101.2.126:3001';
+>>>>>>> 0165aa3d200d1b3e0797786c3c54e50e146d17f6
 
 export default function App() {
   const [menu, setMenu] = useState([]);
