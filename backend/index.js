@@ -6,7 +6,7 @@ const port = 3001; // The port your backend will run on
 // --- Middleware ---
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json()); // Allow the server to understand JSON from requests
-app.use(express.static('public')); // NEW: Serve static files from the 'public' folder
+app.use(express.static('public')); // Serve static files from the 'public' folder (for images)
 
 // --- In-Memory Database (No DB setup needed!) ---
 let orders = [];
@@ -25,7 +25,28 @@ app.get('/api/menu', (req, res) => {
   res.json(menu);
 });
 
-// MODIFIED: Orders now have a 'status' and a 'message'
+// GET /api/orders -> Returns all current orders for the admin dashboard
+app.get('/api/orders', (req, res) => {
+  console.log('Request received for /api/orders');
+  res.json(orders);
+});
+
+// --- NEW ROUTE ---
+// GET /api/orders/:id -> Returns a single order by its ID
+// This was the missing piece causing the 404 error in the customer app.
+app.get('/api/orders/:id', (req, res) => {
+    const orderId = parseInt(req.params.id, 10);
+    const order = orders.find(o => o.id === orderId);
+    console.log(`Request received for order #${orderId}`);
+
+    if (order) {
+        res.json(order);
+    } else {
+        res.status(404).send('Order not found');
+    }
+});
+
+// POST /api/orders -> Receives a new order and adds it to our "database"
 app.post('/api/orders', (req, res) => {
   const newOrder = { 
     id: orderIdCounter++, 
@@ -39,65 +60,26 @@ app.post('/api/orders', (req, res) => {
   res.status(201).json(newOrder);
 });
 
-app.get('/api/orders', (req, res) => {
-  console.log('Request received for /api/orders');
-  res.json(orders);
-});
-
-// MODIFIED: This endpoint now accepts both a status and a message
+// PUT /api/orders/:id/status -> Updates the status and message of a specific order
 app.put('/api/orders/:id/status', (req, res) => {
   const orderId = parseInt(req.params.id);
   const { status, message } = req.body; // Destructure both from the request
   const order = orders.find(o => o.id === orderId);
 
-  if (order) {
+  if (order && status && message) { // Ensure status and message are provided
     order.status = status;
     order.message = message;
-    console.log(`Updated order ${orderId} to status: ${status}, message: ${message}`);
+    console.log(`Updated order ${orderId} to status: ${status}, message: "${message}"`);
     res.json(order);
-  } else {
+  } else if (!order) {
     res.status(404).send('Order not found');
+  } else {
+    res.status(400).send('Bad Request: Status and message are required.');
   }
 });
 
 
-   
-// POST /api/orders -> Receives a new order and adds it to our "database"
-app.post('/api/orders', (req, res) => {
-  const newOrder = { 
-    id: orderIdCounter++, 
-    items: req.body.items, 
-    status: 'Pending', // Default status
-    timestamp: new Date().toLocaleTimeString() 
-  };
-  orders.push(newOrder);
-  console.log('New Order Received:', newOrder);
-  res.status(201).json(newOrder);
-});
-
-// GET /api/orders -> Returns all current orders for the admin dashboard
-app.get('/api/orders', (req, res) => {
-  console.log('Request received for /api/orders');
-  res.json(orders);
-});
-
-// PUT /api/orders/:id/status -> Updates the status of a specific order
-app.put('/api/orders/:id/status', (req, res) => {
-  const orderId = parseInt(req.params.id);
-  const newStatus = req.body.status;
-  const order = orders.find(o => o.id === orderId);
-
-  if (order) {
-    order.status = newStatus;
-    console.log(`Updated order ${orderId} to status: ${newStatus}`);
-    res.json(order);
-  } else {
-    res.status(404).send('Order not found');
-  }
-});
-
-
-// --- Start the Server ---
+// --- Start the Server -- 0-
 app.listen(port, () => {
   console.log(`✅ Backend server running at http://localhost:${port}`);
 });

@@ -11,11 +11,10 @@ import {
   ActivityIndicator,
   Vibration,
 } from 'react-native';
-// CORRECTED IMPORT: SafeAreaProvider and SafeAreaView are now imported from the correct library
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-// IMPROVEMENT: Centralized server IP for easier updates
-const SERVER_IP = '20.101.2.134'; // <-- CHANGE ONLY THIS LINE WITH YOUR SERVER'S IP
+// --- STEP 1: PUT YOUR COMPUTER'S CURRENT IP ADDRESS HERE ---
+const SERVER_IP = '192.168.29.123'; // <-- CRITICAL: REPLACE THIS VALUE
 const API_URL = `http://${SERVER_IP}:3001`;
 
 export default function App() {
@@ -24,11 +23,8 @@ export default function App() {
   const [view, setView] = useState('menu');
   const [activeOrder, setActiveOrder] = useState(null);
   const [notification, setNotification] = useState(null);
-  
-  // ENHANCEMENT: Added loading state for a better user experience
   const [isLoading, setIsLoading] = useState(true);
 
-  // --- Functions for Menu and Cart ---
   useEffect(() => {
     const fetchMenu = async () => {
       try {
@@ -36,9 +32,9 @@ export default function App() {
         const data = await response.json();
         setMenu(data);
       } catch (error) {
-        Alert.alert('Connection Error', 'Could not fetch menu from the server.');
+        console.error("Fetch Menu Error:", error);
+        Alert.alert('Connection Error', 'Could not fetch menu. Please ensure the server is running and the IP address is correct.');
       } finally {
-        // ENHANCEMENT: Stop loading indicator after fetch is complete
         setIsLoading(false);
       }
     };
@@ -70,53 +66,42 @@ export default function App() {
       setView('orderStatus');
       setCart([]);
     } catch (error) {
+      console.error("Place Order Error:", error);
       Alert.alert('Error', 'Could not place your order.');
     }
   };
 
   const totalCost = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // --- UI Rendering ---
-
   const MenuView = () => {
-    // ENHANCEMENT: Show loading indicator while fetching menu
     if (isLoading) {
       return (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#282c34" />
-          <Text style={{marginTop: 10}}>Loading Menu...</Text>
+          <Text style={{ marginTop: 10 }}>Loading Menu...</Text>
         </View>
       );
     }
-
     return (
       <>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>Restaurant Menu</Text>
-        </View>
+        <View style={styles.header}><Text style={styles.headerText}>Restaurant Menu</Text></View>
         <FlatList
           data={menu}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
             <View style={styles.menuItem}>
               <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.dishImage} />
-              <View style={styles.itemDetails}>
-                <Text style={styles.itemName}>{item.name} - ₹{item.price}</Text>
-              </View>
-              <View style={styles.addButton}>
-                <Button title="Add" onPress={() => addToCart(item)} />
-              </View>
+              <View style={styles.itemDetails}><Text style={styles.itemName}>{item.name} - ₹{item.price}</Text></View>
+              <View style={styles.addButton}><Button title="Add" onPress={() => addToCart(item)} /></View>
             </View>
           )}
           style={styles.menuList}
         />
         <View style={styles.cartContainer}>
           <Text style={styles.cartTitle}>Your Cart</Text>
-          {cart.map(item => ( <Text key={item.id} style={styles.cartItem}>{item.quantity} x {item.name}</Text> ))}
-          <Text style={styles.totalText}>Total: ₹{totalCost}</Text>
-          <TouchableOpacity style={styles.orderButton} onPress={placeOrder}>
-            <Text style={styles.orderButtonText}>Place Order</Text>
-          </TouchableOpacity>
+          {cart.map(item => (<Text key={item.id} style={styles.cartItem}>{item.quantity} x {item.name}</Text>))}
+          <Text style={styles.totalText}>Total: ₹{totalCost.toFixed(2)}</Text>
+          <TouchableOpacity style={styles.orderButton} onPress={placeOrder} disabled={cart.length === 0}><Text style={styles.orderButtonText}>Place Order</Text></TouchableOpacity>
         </View>
       </>
     );
@@ -124,35 +109,40 @@ export default function App() {
 
   const OrderStatusView = () => {
     const prevMessageRef = useRef();
+    useEffect(() => { prevMessageRef.current = activeOrder?.message; }, [activeOrder]);
 
-    useEffect(() => {
-        prevMessageRef.current = activeOrder?.message;
-    }, [activeOrder]);
-    
-    // BUG FIX: Added activeOrder.id to the dependency array
     useEffect(() => {
       if (!activeOrder?.id) return;
 
       const fetchOrderStatus = async () => {
         try {
-          const response = await fetch(`${API_URL}/api/orders/${activeOrder.id}`);
-          const updatedOrder = await response.json();
+          // --- STEP 2: THIS IS THE NETWORK CALL THAT IS FAILING ---
+          const url = `${API_URL}/api/orders/${activeOrder.id}`;
+          console.log(`Polling for status update: ${url}`); // <-- ADDED FOR DEBUGGING
+          const response = await fetch(url);
 
+          // IMPROVEMENT: Check if the server responded successfully
+          if (!response.ok) {
+            // This will catch 404 Not Found errors, etc.
+            throw new Error(`Server responded with status: ${response.status}`);
+          }
+
+          const updatedOrder = await response.json();
           if (updatedOrder.message !== prevMessageRef.current) {
             Vibration.vibrate();
             setNotification(updatedOrder.message);
             setTimeout(() => setNotification(null), 4000);
           }
-          
           setActiveOrder(updatedOrder);
         } catch (error) {
-          console.error('Failed to fetch order status');
+          // This is where the error in your logs is coming from
+          console.error('Failed to fetch order status:', error); // <-- BETTER LOGGING
         }
       };
 
       const interval = setInterval(fetchOrderStatus, 5000);
       return () => clearInterval(interval);
-    }, [activeOrder?.id]); // <-- CORRECT DEPENDENCY
+    }, [activeOrder?.id]);
 
     if (!activeOrder) return null;
     const statusStyle = styles[`status_${activeOrder.status.toLowerCase()}`] || {};
@@ -160,17 +150,11 @@ export default function App() {
     return (
       <View style={[styles.statusContainer, statusStyle.container]}>
         <Text style={styles.statusTitle}>Tracking Order #{activeOrder.id}</Text>
-        <ActivityIndicator size="large" color="#fff" style={{ marginVertical: 20 }}/>
+        <ActivityIndicator size="large" color="#fff" style={{ marginVertical: 20 }} />
         <Text style={[styles.statusMessage, statusStyle.text]}>{activeOrder.message}</Text>
         <Text style={styles.statusSubText}>This screen will update automatically.</Text>
-
         {['Completed', 'Cancelled'].includes(activeOrder.status) && (
-          <TouchableOpacity 
-            style={styles.newOrderButton} 
-            onPress={() => {
-              setActiveOrder(null);
-              setView('menu');
-            }}>
+          <TouchableOpacity style={styles.newOrderButton} onPress={() => { setActiveOrder(null); setView('menu'); }}>
             <Text style={[styles.orderButtonText, statusStyle.buttonText]}>Place a New Order</Text>
           </TouchableOpacity>
         )}
@@ -179,14 +163,9 @@ export default function App() {
   };
 
   return (
-    // CORRECTED WRAPPER: App is wrapped in SafeAreaProvider
     <SafeAreaProvider>
       <SafeAreaView style={styles.container}>
-        {notification && (
-          <View style={styles.notificationBanner}>
-            <Text style={styles.notificationText}>{notification}</Text>
-          </View>
-        )}
+        {notification && (<View style={styles.notificationBanner}><Text style={styles.notificationText}>{notification}</Text></View>)}
         {view === 'menu' ? <MenuView /> : <OrderStatusView />}
       </SafeAreaView>
     </SafeAreaProvider>
@@ -224,7 +203,7 @@ const styles = StyleSheet.create({
   status_cancelled: { container: { backgroundColor: '#d9534f' }, text: { color: 'white' }, buttonText: {color: '#333'} },
   notificationBanner: {
     position: 'absolute',
-    top: 40,
+    top: 50, // Adjusted for better visibility
     left: 20,
     right: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -238,6 +217,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-
-
-//new app.js
