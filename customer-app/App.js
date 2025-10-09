@@ -210,3 +210,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+
+//new app.js
