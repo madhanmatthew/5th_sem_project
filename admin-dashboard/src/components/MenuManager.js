@@ -13,10 +13,12 @@ function MenuManager() {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [image, setImage] = useState('');
+  const [category, setCategory] = useState(''); // NEW state for category
 
   // Helper function to get the auth token
   const getAuthToken = () => {
-    return localStorage.getItem('admin_token');
+    // We use a fake token for "skip login" mode
+    return localStorage.getItem('admin_token') || 'DEV_BYPASS_TOKEN';
   };
 
   // --- Data Functions ---
@@ -30,7 +32,6 @@ function MenuManager() {
     }
   };
 
-  // Load menu on component mount
   useEffect(() => {
     fetchMenu();
   }, []);
@@ -40,7 +41,8 @@ function MenuManager() {
     e.preventDefault();
     const token = getAuthToken();
     const headers = { 'x-auth-token': token };
-    const itemData = { name, price: parseFloat(price), image };
+    // NEW: Add category to the data
+    const itemData = { name, price: parseFloat(price), image, category };
 
     try {
       if (isEditing) {
@@ -80,7 +82,8 @@ function MenuManager() {
     setName(item.name);
     setPrice(item.price);
     setImage(item.image);
-    window.scrollTo(0, 0); // Scroll to top to see the form
+    setCategory(item.category); // NEW: set category on edit
+    window.scrollTo(0, 0); 
   };
 
   const resetForm = () => {
@@ -89,6 +92,7 @@ function MenuManager() {
     setName('');
     setPrice('');
     setImage('');
+    setCategory(''); // NEW: reset category
     setError('');
   };
 
@@ -122,14 +126,27 @@ function MenuManager() {
             />
           </div>
         </div>
-        <div>
-          <label>Image Path</label>
-          <input
-            type="text"
-            value={image}
-            onChange={(e) => setImage(e.target.value)}
-            placeholder="e.g., /images/paneer.jpg"
-          />
+        <div className="form-row">
+          <div>
+            <label>Image Path</label>
+            <input
+              type="text"
+              value={image}
+              onChange={(e) => setImage(e.target.value)}
+              placeholder="e.g., /images/paneer.jpg"
+            />
+          </div>
+          <div>
+            {/* --- NEW CATEGORY FIELD --- */}
+            <label>Category</label>
+            <input
+              type="text"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g., House Specials"
+              required
+            />
+          </div>
         </div>
         <button type="submit">{isEditing ? 'Update Item' : 'Add Item'}</button>
         {isEditing && <button type="button" onClick={resetForm} style={{ marginLeft: '1rem', backgroundColor: '#6c757d' }}>Cancel Edit</button>}
@@ -141,7 +158,7 @@ function MenuManager() {
           <tr>
             <th>Name</th>
             <th>Price</th>
-            <th>Image Path</th>
+            <th>Category</th> {/* NEW: Category column */}
             <th>Actions</th>
           </tr>
         </thead>
@@ -150,7 +167,7 @@ function MenuManager() {
             <tr key={item.id}>
               <td>{item.name}</td>
               <td>₹{item.price}</td>
-              <td>{item.image}</td>
+              <td>{item.category}</td> {/* NEW: Category data */}
               <td>
                 <button className="edit-btn" onClick={() => editItem(item)}>Edit</button>
                 <button className="delete-btn" onClick={() => handleDelete(item.id)}>Delete</button>
