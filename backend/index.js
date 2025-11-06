@@ -337,4 +337,5 @@ app.put('/api/orders/:id/status', /* verifyToken, */ async (req, res) => {
 // MODIFIED: Use server.listen instead of app.listen
 server.listen(port, () => {
   console.log(`✅ Backend server with Socket.io running at http://localhost:${port}`);
+
 });
