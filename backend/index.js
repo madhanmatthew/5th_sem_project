@@ -33,7 +33,7 @@ const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
   database: 'restaurant_db',
-  password: 'your_postgres_password', // !!! REPLACE with your local password
+  password: 'Madhan@1107', // !!! REPLACE with your local password
   port: 5432,
 });
 
