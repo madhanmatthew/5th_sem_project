@@ -1,5 +1,5 @@
-/* === FINAL BACKEND (FULL SERVER) === */
-/* This file includes PostgreSQL, Socket.io, JWT Auth, and Menu CRUD */
+/* === FINAL BACKEND (Full Server) === */
+/* === SECURITY TEMPORARILY DISABLED FOR DEVELOPMENT === */
 
 const express = require('express');
 const cors = require('cors');
@@ -8,7 +8,7 @@ const http = require('http'); // Required for socket.io
 const { Server } = require('socket.io'); // Import socket.io
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const verifyToken = require('./verifyToken.js'); // Import our new middleware
+const verifyToken = require('./verifyToken'); // We still import it, just don't use it
 
 const app = express();
 const port = 3001;
@@ -54,7 +54,7 @@ io.on('connection', (socket) => {
 });
 
 /* ==================================
- AUTHENTICATION API
+ AUTHENTICATION API (Still functional)
 ==================================
 */
 
@@ -131,7 +131,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 /* ==================================
- MENU API (Admin Only)
+ MENU API (Security Disabled)
 ==================================
 */
 
@@ -147,8 +147,8 @@ app.get('/api/menu', async (req, res) => {
 });
 
 // POST /api/menu (Admin Only)
-app.post('/api/menu', verifyToken, async (req, res) => {
-  if (!req.user.isAdmin) return res.status(403).send('Access Denied');
+app.post('/api/menu', /* verifyToken, */ async (req, res) => {
+  // if (!req.user.isAdmin) return res.status(403).send('Access Denied'); // Security disabled
   
   const { name, price, image } = req.body;
   try {
@@ -164,8 +164,8 @@ app.post('/api/menu', verifyToken, async (req, res) => {
 });
 
 // PUT /api/menu/:id (Admin Only)
-app.put('/api/menu/:id', verifyToken, async (req, res) => {
-  if (!req.user.isAdmin) return res.status(403).send('Access Denied');
+app.put('/api/menu/:id', /* verifyToken, */ async (req, res) => {
+  // if (!req.user.isAdmin) return res.status(403).send('Access Denied'); // Security disabled
 
   const itemId = parseInt(req.params.id);
   const { name, price, image } = req.body;
@@ -185,8 +185,8 @@ app.put('/api/menu/:id', verifyToken, async (req, res) => {
 });
 
 // DELETE /api/menu/:id (Admin Only)
-app.delete('/api/menu/:id', verifyToken, async (req, res) => {
-  if (!req.user.isAdmin) return res.status(403).send('Access Denied');
+app.delete('/api/menu/:id', /* verifyToken, */ async (req, res) => {
+  // if (!req.user.isAdmin) return res.status(403).send('Access Denied'); // Security disabled
   
   const itemId = parseInt(req.params.id);
   try {
@@ -200,13 +200,13 @@ app.delete('/api/menu/:id', verifyToken, async (req, res) => {
 
 
 /* ==================================
- ORDER API (Protected)
+ ORDER API (Security Disabled)
 ==================================
 */
 
 // GET /api/orders (Admin Only)
-app.get('/api/orders', verifyToken, async (req, res) => {
-  if (!req.user.isAdmin) return res.status(403).send('Access Denied');
+app.get('/api/orders', /* verifyToken, */ async (req, res) => {
+  // if (!req.user.isAdmin) return res.status(403).send('Access Denied'); // Security disabled
 
   try {
     const query = `
@@ -230,8 +230,10 @@ app.get('/api/orders', verifyToken, async (req, res) => {
 });
 
 // GET /api/orders/my-order (Customer Only)
-// This is the new endpoint for the customer to get their *own* order
-app.get('/api/orders/my-order', verifyToken, async (req, res) => {
+app.get('/api/orders/my-order', /* verifyToken, */ async (req, res) => {
+  // We will add a fake user ID for testing
+  const testUserId = 1; // Assuming a user with ID 1 exists
+  
   try {
     const orderQuery = `
       SELECT id, status, message, timestamp 
@@ -240,7 +242,7 @@ app.get('/api/orders/my-order', verifyToken, async (req, res) => {
       ORDER BY timestamp DESC
       LIMIT 1
     `;
-    const orderResult = await pool.query(orderQuery, [req.user.id]);
+    const orderResult = await pool.query(orderQuery, [/* req.user.id */ testUserId]); // Using testUserId
     if (orderResult.rows.length === 0) {
       return res.status(404).send('No active order found');
     }
@@ -252,9 +254,9 @@ app.get('/api/orders/my-order', verifyToken, async (req, res) => {
 });
 
 // POST /api/orders (Customer Only)
-app.post('/api/orders', verifyToken, async (req, res) => {
-  const { items } = req.body; // e.g., [{id: 1, quantity: 2}, {id: 2, quantity: 1}]
-  const userId = req.user.id;
+app.post('/api/orders', /* verifyToken, */ async (req, res) => {
+  const { items } = req.body;
+  const userId = 1; // Using a fake test user ID
   const client = await pool.connect();
   
   try {
@@ -306,8 +308,8 @@ app.post('/api/orders', verifyToken, async (req, res) => {
 });
 
 // PUT /api/orders/:id/status (Admin Only)
-app.put('/api/orders/:id/status', verifyToken, async (req, res) => {
-  if (!req.user.isAdmin) return res.status(403).send('Access Denied');
+app.put('/api/orders/:id/status', /* verifyToken, */ async (req, res) => {
+  // if (!req.user.isAdmin) return res.status(403).send('Access Denied'); // Security disabled
   
   const orderId = parseInt(req.params.id);
   const { status, message } = req.body;
