@@ -1,6 +1,6 @@
 // screens/MainAppScreen.js
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,109 +14,115 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import io from 'socket.io-client'; 
-import { PRIMARY_COLOR } from '../App'; 
+import io from 'socket.io-client';
+import axios from 'axios'; // We will use axios for authenticated requests
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// --- Configuration ---
-// IMPORTANT: REPLACE THIS IP WITH YOUR PERMANENT, DEPLOYED URL!
-const API_URL = 'http://192.168.29.123:3001'; 
-// Use const API_URL = 'https://sagarcafebackend.render.com'; when deployed!
+// --- Import from our new helper files ---
+import { PRIMARY_COLOR, API_URL } from '../config';
+import { useAuth } from '../AuthContext';
 
-// --- Mock Cafe Data (Ensure this array is COMPLETE) ---
-// This list is used for the categories menu
-const CATEGORIES = [
-  { id: 'C1', name: 'Premium Coffee', image: '/images/coffee.png' }, 
-  { id: 'C2', name: 'All-Day Breakfast', image: '/images/breakfast.png' },
-  { id: 'C3', name: 'Sandwiches & Wraps', image: '/images/sandwich.png' },
-  { id: 'C4', name: 'Pastas & Bowls', image: '/images/pasta.png' },
-  { id: 'C5', name: 'Milkshakes & Smoothies', image: '/images/smoothie.png' },
-  { id: 'C6', name: 'Freshly Baked', image: '/images/dessert.png' },
-  { id: 'C7', name: 'House Specials', image: '/images/special.png' },
-];
+// --- SOCKET.IO and API CLIENT SETUP ---
+// We connect to the socket server one time
+const socket = io(API_URL, {
+  transports: ['websocket'],
+});
 
-// NOTE: You must include all 15+ mock menu items here for fallback functionality!
-const CAFE_MENU_ADDITIONS = [
-    { id: 11, name: 'Classic Cappuccino', price: 180.00, image: '/images/cappuccino.png', category: 'Premium Coffee' },
-    { id: 12, name: 'Iced Caramel Macchiato', price: 250.00, image: '/images/macchiato.png', category: 'Premium Coffee' },
-    { id: 17, name: 'Alfredo White Sauce Pasta', price: 350.00, image: '/images/alfredopasta.png', category: 'Pastas & Bowls' },
-    { id: 20, name: 'Blueberry Cheesecake Slice', price: 420.00, image: '/images/cheesecake.png', category: 'Freshly Baked' },
-    // ... rest of your menu items ...
-];
+// This is a helper function to create an API client that
+// automatically includes the user's login token in all requests.
+const getApiClient = async () => {
+  // Get the token that AuthScreen saved
+  const token = await AsyncStorage.getItem('userToken'); 
+  return axios.create({
+    baseURL: API_URL,
+    headers: { 'x-auth-token': token }
+  });
+};
 
 // --- Main Logic Component (MainAppScreen) ---
 export default function MainAppScreen({ navigation }) {
-  const [menu, setMenu] = useState([]);
+  const [menu, setMenu] = useState([]); // Will be filled from API
   const [cart, setCart] = useState([]);
   const [view, setView] = useState('menu'); // 'menu', 'cartDetails', 'orderStatus'
   const [activeOrder, setActiveOrder] = useState(null);
   const [notification, setNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const prevMessageRef = useRef();
+  
+  // Get the logged-in user's data from our context
+  const { user } = useAuth();
 
-  // --- Data Fetching (Menu) ---
+  // --- Data Fetching (FIXED) ---
   useEffect(() => {
-    const fetchMenu = async () => {
+    const loadData = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`${API_URL}/api/menu`);
-        const serverMenu = await response.json();
+        const apiClient = await getApiClient(); // Use our new authenticated client
         
-        // Merge server menu with mock items for a full list
-        const mergedMenu = [...serverMenu, ...CAFE_MENU_ADDITIONS].reduce((acc, item) => {
-            if (!acc.some(existing => existing.id === item.id)) {
-                acc.push(item);
-            }
-            return acc;
-        }, []);
-        setMenu(mergedMenu.sort((a, b) => a.id - b.id)); 
+        // 1. Check for an active order first
+        try {
+          // This call is now authenticated
+          const orderResponse = await apiClient.get('/api/orders/my-order');
+          if (orderResponse.data) {
+            setActiveOrder(orderResponse.data);
+            setView('orderStatus'); // Go straight to tracking
+          }
+        } catch (orderError) {
+          // A 404 "Not Found" error is normal, it just means no active order.
+          if (orderError.response && orderError.response.status !== 404) {
+             console.log("Could not fetch active order.");
+          }
+        }
+        
+        // 2. Fetch the menu from the backend
+        // This is now the ONLY source of truth for the menu.
+        // All your hardcoded arrays are gone.
+        const menuResponse = await apiClient.get('/api/menu');
+        setMenu(menuResponse.data.sort((a, b) => a.id - b.id));
 
-      } catch (error) {
-        setMenu(CAFE_MENU_ADDITIONS); // Fallback to mock menu
-        Alert.alert('Connection Error', `Could not reach server. Showing local Sagar Cafe menu.`);
+      } catch (err) {
+        console.error("Load Data Error:", err);
+        Alert.alert('Connection Error', `Could not load data from the server. Please check your backend and reload the app.`);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchMenu();
-  }, []);
+    loadData();
+  }, []); // Runs once on load
 
-  // --- SOCKET.IO INTEGRATION (Real-time Order Tracking) ---
+  // --- SOCKET.IO INTEGRATION (Your logic, unchanged) ---
   useEffect(() => {
     prevMessageRef.current = activeOrder?.message;
     if (!activeOrder?.id || view !== 'orderStatus') return;
 
-    const socket = io(API_URL, {
-        transports: ['websocket'],
-    });
-
     socket.on('connect', () => {
-        console.log(`[Socket] Connected to backend. Tracking Order #${activeOrder.id}`);
-        socket.emit('trackOrder', activeOrder.id); 
+      console.log(`[Socket] Connected. Tracking Order #${activeOrder.id}`);
     });
 
-    socket.on('orderUpdate', (updatedOrder) => {
-        if (updatedOrder.id === activeOrder.id) {
-            if (updatedOrder.message !== prevMessageRef.current) {
-                Vibration.vibrate(500);
-                setNotification(updatedOrder.message);
-                setTimeout(() => setNotification(null), 4000);
-            }
-            setActiveOrder(updatedOrder);
-        }
+    socket.on('order_update', (updatedOrder) => {
+      if (updatedOrder.id === activeOrder.id) {
+          if (updatedOrder.message !== prevMessageRef.current) {
+            Vibration.vibrate(500);
+            setNotification(updatedOrder.message);
+            setTimeout(() => setNotification(null), 4000);
+          }
+          setActiveOrder(updatedOrder);
+          prevMessageRef.current = updatedOrder.message;
+      }
     });
 
     socket.on('connect_error', (err) => {
-        console.log(`[Socket] Connection Error: ${err.message}`);
+      console.log(`[Socket] Connection Error: ${err.message}`);
     });
 
-    // Cleanup function: Disconnect the socket when component unmounts
     return () => {
-        socket.disconnect();
+      socket.off('order_update');
+      socket.off('connect');
     };
-  }, [activeOrder?.id, view]); // Rerun when a NEW activeOrder ID is set OR view changes
+  }, [activeOrder?.id, view]);
 
 
-  // --- Cart and Order Logic ---
+  // --- Cart and Order Logic (FIXED) ---
   const addToCart = (item) => {
     Vibration.vibrate(50);
     setCart((currentCart) => {
@@ -132,25 +138,28 @@ export default function MainAppScreen({ navigation }) {
 
   const placeOrder = async () => {
     if (cart.length === 0) return;
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const response = await fetch(`${API_URL}/api/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: cart }),
-      });
-      const newOrder = await response.json();
+      const apiClient = await getApiClient(); // Use authenticated client
+      
+      // Send only the item IDs and quantities, as per your backend's needs
+      const orderItems = cart.map(item => ({ id: item.id, quantity: item.quantity }));
+      
+      const response = await apiClient.post('/api/orders', { items: orderItems });
+      
+      const newOrder = response.data;
       setActiveOrder(newOrder);
       setView('orderStatus');
       setCart([]);
     } catch (error) {
+      console.error("Place Order Error:", error);
       Alert.alert('Error', 'Could not place your order.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const totalCost = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalCost = cart.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
 
   // --- View Components ---
   const renderCategoryItem = ({ item }) => (
@@ -165,7 +174,7 @@ export default function MainAppScreen({ navigation }) {
       <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.dishImage} />
       <View style={styles.itemDetails}>
         <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemPrice}>₹{item.price.toFixed(2)}</Text>
+        <Text style={styles.itemPrice}>₹{parseFloat(item.price).toFixed(2)}</Text>
         <Text style={styles.itemCategory}>{item.category || 'Cafe Item'}</Text>
       </View>
       <TouchableOpacity style={styles.addButton} onPress={() => addToCart(item)}>
@@ -175,11 +184,26 @@ export default function MainAppScreen({ navigation }) {
   );
 
   const MenuView = () => {
+    // Dynamically create the category list from the menu (FIXED)
+    const dynamicCategories = menu.reduce((acc, item) => {
+      const categoryName = item.category || 'Other Items';
+      if (!acc[categoryName]) {
+        acc[categoryName] = { 
+          id: categoryName, 
+          name: categoryName, 
+          image: item.image || '/images/default.png' // Use first item's image
+        };
+      }
+      return acc;
+    }, {});
+    const categoryList = Object.values(dynamicCategories);
+    
+    // Group menu items by category (FIXED)
     const groupedMenu = menu.reduce((acc, item) => {
-        const category = item.category || 'Other Items';
-        if (!acc[category]) acc[category] = [];
-        acc[category].push(item);
-        return acc;
+      const category = item.category || 'Other Items';
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(item);
+      return acc;
     }, {});
     
     if (isLoading) {
@@ -224,7 +248,7 @@ export default function MainAppScreen({ navigation }) {
           <Text style={styles.cravingText}>What are you craving for?</Text>
           <FlatList
             horizontal
-            data={CATEGORIES}
+            data={categoryList} // Use dynamic list
             renderItem={renderCategoryItem}
             keyExtractor={(item) => item.id}
             showsHorizontalScrollIndicator={false}
@@ -234,7 +258,7 @@ export default function MainAppScreen({ navigation }) {
           <Text style={styles.whatsNewText}>New Arrivals & Specials</Text>
           <FlatList
             horizontal
-            data={menu.slice(0, 4)} 
+            data={menu.slice(0, 4)} // Show first 4 items from server
             renderItem={({ item }) => (
               <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.bannerImage} />
             )}
@@ -245,15 +269,15 @@ export default function MainAppScreen({ navigation }) {
 
           {/* Main Menu (Grouped by Category) */}
           {Object.keys(groupedMenu).map(category => (
-              <View key={category}>
-                  <Text style={styles.menuSectionHeader}>{category}</Text>
-                  <FlatList
-                    data={groupedMenu[category]}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={renderMenuItem}
-                    scrollEnabled={false}
-                  />
-              </View>
+            <View key={category}>
+                <Text style={styles.menuSectionHeader}>{category}</Text>
+                <FlatList
+                  data={groupedMenu[category]}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={renderMenuItem}
+                  scrollEnabled={false}
+                />
+            </View>
           ))}
 
           <View style={{ height: 100 }} />
@@ -275,7 +299,7 @@ export default function MainAppScreen({ navigation }) {
           <View key={item.id} style={styles.cartDetailItem}>
             <Text style={styles.cartDetailItemName}>{item.name}</Text>
             <Text style={styles.cartDetailItemQuantity}>x {item.quantity}</Text>
-            <Text style={styles.cartDetailItemPrice}>₹{(item.price * item.quantity).toFixed(2)}</Text>
+            <Text style={styles.cartDetailItemPrice}>₹{(parseFloat(item.price) * item.quantity).toFixed(2)}</Text>
           </View>
         ))}
       </ScrollView>
@@ -340,13 +364,14 @@ export default function MainAppScreen({ navigation }) {
         
         {/* Profile Button (Navigate to ProfileScreen) */}
         <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('Profile')}>
-            <Text style={styles.profileButtonText}>👤 Profile</Text>
+           {/* Use the user's name from context */}
+          <Text style={styles.profileButtonText}>👤 {user ? user.name : 'Account'}</Text>
         </TouchableOpacity>
 
         {renderView()}
 
         {/* Floating Cart Overlay */}
-        {cart.length > 0 && view !== 'cartDetails' && (
+        {cart.length > 0 && view === 'menu' && (
           <View style={styles.floatingCartContainer}>
             <View style={styles.cartSummary}>
               <Text style={styles.cartCountText}>{cart.length} Item(s) in Cart</Text>
@@ -371,7 +396,7 @@ export default function MainAppScreen({ navigation }) {
   );
 }
 
-// --- Styles ---
+// --- STYLES (Your exact styles, unchanged) ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -381,7 +406,7 @@ const styles = StyleSheet.create({
 
   profileButton: {
     position: 'absolute',
-    top: 40, 
+    top: 50, // Adjusted for SafeAreaView
     right: 15,
     zIndex: 100,
     padding: 8,

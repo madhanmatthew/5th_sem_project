@@ -1,62 +1,27 @@
-import React, { useState, useEffect, useMemo } from 'react';
+// customer-app/App.js
+
+import React from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// --- Import New Screens from the screens/ directory ---
-// Make sure these paths are correct!
+// --- Import our new helper files ---
+import { AuthProvider, useAuth } from './AuthContext';
+import { PRIMARY_COLOR } from './config';
+
+// --- Import our three screens ---
 import AuthScreen from './screens/AuthScreen';
 import MainAppScreen from './screens/MainAppScreen';
 import ProfileScreen from './screens/ProfileScreen';
 
-// --- Configuration ---
-const PRIMARY_COLOR = '#6F4E37'; // Sagar Cafe Brown
 const Stack = createNativeStackNavigator();
 
-// --- Context for Authentication State (Used across components) ---
-const AuthContext = React.createContext();
+// This new component contains all our navigation logic
+function AppNavigator() {
+  // Get the login state and loading status from our new AuthContext
+  const { isLoading, userToken } = useAuth(); 
 
-// --- Main App Component ---
-export default function App() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [userToken, setUserToken] = useState(null);
-
-  // --- Initial Check for Token (Runs only once on app launch) ---
-  useEffect(() => {
-    const bootstrapAsync = async () => {
-      let token;
-      try {
-        // Retrieve the user token from AsyncStorage
-        token = await AsyncStorage.getItem('userToken');
-      } catch (e) {
-        console.error('Failed to restore token from storage', e);
-      }
-      // This token value determines if we show the Auth stack or the Home stack
-      setUserToken(token); 
-      setIsLoading(false);
-    };
-
-    bootstrapAsync();
-  }, []);
-
-  // --- Auth Context Value (Functions provided to Login/Profile screens) ---
-  const authContext = useMemo(
-    () => ({
-      // Function to be called after a successful Login/Register
-      signIn: async (token) => {
-        await AsyncStorage.setItem('userToken', token);
-        setUserToken(token); // Update state to trigger navigation to MainAppScreen
-      },
-      // Function to be called when the user presses Logout
-      signOut: async () => {
-        await AsyncStorage.removeItem('userToken');
-        setUserToken(null); // Update state to trigger navigation back to AuthScreen
-      },
-    }),
-    []
-  );
-
+  // Show a loading spinner while the app checks for a saved token
   if (isLoading) {
     return (
       <View style={styles.centered}>
@@ -66,37 +31,48 @@ export default function App() {
   }
 
   return (
-    <AuthContext.Provider value={authContext}>
-      <NavigationContainer>
-        <Stack.Navigator 
-          screenOptions={{ 
-            headerShown: false, // Hide default header for a clean look
-            contentStyle: { backgroundColor: '#f5f5f5' } // Consistent background
-          }}
-        >
-          {userToken == null ? (
-            // --- User NOT authenticated (Public Stack) ---
-            <Stack.Group>
-              <Stack.Screen name="Auth" component={AuthScreen} />
-            </Stack.Group>
-          ) : (
-            // --- User IS authenticated (Private/App Stack) ---
-            <Stack.Group>
-              <Stack.Screen name="Home" component={MainAppScreen} />
-              <Stack.Screen name="Profile" component={ProfileScreen} 
-                options={{ headerShown: true, title: 'My Account' }} 
-              />
-            </Stack.Group>
-          )}
-        </Stack.Navigator>
-      </NavigationContainer>
-    </AuthContext.Provider>
+    <NavigationContainer>
+      <Stack.Navigator 
+        screenOptions={{ 
+          headerShown: false, // Hide the default header
+        }}
+      >
+        {userToken == null ? (
+          // --- User is NOT logged in ---
+          // Show the AuthScreen (Login/Register)
+          <Stack.Screen name="Auth" component={AuthScreen} />
+        ) : (
+          // --- User IS logged in ---
+          // Show the main app screens
+          <>
+            <Stack.Screen name="Home" component={MainAppScreen} />
+            <Stack.Screen 
+              name="Profile" 
+              component={ProfileScreen} 
+              options={{ 
+                headerShown: true, 
+                title: 'My Account',
+                headerStyle: { backgroundColor: PRIMARY_COLOR },
+                headerTintColor: '#fff'
+              }} 
+            />
+          </>
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+// This is the final App. We wrap the entire Navigator in the AuthProvider
+// so that all screens can access the login state.
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppNavigator />
+    </AuthProvider>
   );
 }
 
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });
-
-// Export the context and color for use in other screens
-export { AuthContext, PRIMARY_COLOR };
