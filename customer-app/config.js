@@ -1,5 +1,5 @@
 // This is the only file you need to change your IP address in.
-const API_URL = 'http://localhost:3001'; 
+const API_URL = 'https://restaurant-app-backend-qwfb.onrender.com'; 
 // When you deploy, you will change this to:
 // const API_URL = 'https://your-backend.onrender.com';
 
