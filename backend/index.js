@@ -2,6 +2,7 @@
 /* === SECURITY TEMPORARILY DISABLED FOR DEVELOPMENT === */
 /* === NOW INCLUDES 'CATEGORY' IN MENU ROUTES === */
 
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -29,13 +30,18 @@ const io = new Server(server, {
 });
 
 // --- PostgreSQL Connection ---
+const connectionString = process.env.DATABASE_URL || `postgresql://postgres:your_local_password@localhost:5432/restaurant_db`;
+
+// !!! IMPORTANT: Replace 'your_local_password' above with your *actual* local password
+// This lets you still test locally if you want to.
+
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'restaurant_db',
-  password: 'Madhan@1107', // !!! REPLACE with your local password
-  port: 5432,
+  connectionString: connectionString,
+  // This 'ssl' part is REQUIRED for Render's database
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false 
 });
+
+// === ADD THIS CODE ===
 
 // Check DB connection
 pool.query('SELECT NOW()', (err, res) => {
@@ -45,6 +51,8 @@ pool.query('SELECT NOW()', (err, res) => {
     console.log('✅ Successfully connected to PostgreSQL database.');
   }
 });
+
+// === END OF NEW CODE ===
 
 // --- Socket.io Connection ---
 io.on('connection', (socket) => {
@@ -137,7 +145,7 @@ app.get('/api/menu', async (req, res) => {
 });
 
 // POST /api/menu (Admin Only) - UPDATED
-app.post('/api/menu', /* verifyToken, */ async (req, res) => {
+app.post('/api/menu',  verifyToken, async (req, res) => {
   // const { name, price, image } = req.body; // Old
   const { name, price, image, category } = req.body; // NEW
   try {
@@ -153,7 +161,7 @@ app.post('/api/menu', /* verifyToken, */ async (req, res) => {
 });
 
 // PUT /api/menu/:id (Admin Only) - UPDATED
-app.put('/api/menu/:id', /* verifyToken, */ async (req, res) => {
+app.put('/api/menu/:id', verifyToken, async (req, res) => {
   const itemId = parseInt(req.params.id);
   // const { name, price, image } = req.body; // Old
   const { name, price, image, category } = req.body; // NEW
@@ -173,7 +181,7 @@ app.put('/api/menu/:id', /* verifyToken, */ async (req, res) => {
 });
 
 // DELETE /api/menu/:id (Admin Only)
-app.delete('/api/menu/:id', /* verifyToken, */ async (req, res) => {
+app.delete('/api/menu/:id',  verifyToken,  async (req, res) => {
   const itemId = parseInt(req.params.id);
   try {
     await pool.query("DELETE FROM menu_items WHERE id = $1", [itemId]);
@@ -190,7 +198,7 @@ app.delete('/api/menu/:id', /* verifyToken, */ async (req, res) => {
 ==================================
 */
 // GET /api/orders (Admin Only)
-app.get('/api/orders', /* verifyToken, */ async (req, res) => {
+app.get('/api/orders',  verifyToken,  async (req, res) => {
   try {
     const query = `
       SELECT 
@@ -213,7 +221,7 @@ app.get('/api/orders', /* verifyToken, */ async (req, res) => {
 });
 
 // GET /api/orders/my-order (Customer Only)
-app.get('/api/orders/my-order', /* verifyToken, */ async (req, res) => {
+app.get('/api/orders/my-order',  verifyToken,  async (req, res) => {
   const testUserId = 1; 
   try {
     const orderQuery = `
@@ -235,7 +243,7 @@ app.get('/api/orders/my-order', /* verifyToken, */ async (req, res) => {
 });
 
 // POST /api/orders (Customer Only)
-app.post('/api/orders', /* verifyToken, */ async (req, res) => {
+app.post('/api/orders',  verifyToken,  async (req, res) => {
   const { items } = req.body;
   const userId = 1; 
   const client = await pool.connect();
@@ -292,7 +300,7 @@ app.post('/api/orders', /* verifyToken, */ async (req, res) => {
 });
 
 // PUT /api/orders/:id/status (Admin Only)
-app.put('/api/orders/:id/status', /* verifyToken, */ async (req, res) => {
+app.put('/api/orders/:id/status',  verifyToken,  async (req, res) => {
   const orderId = parseInt(req.params.id);
   const { status, message } = req.body;
   try {
