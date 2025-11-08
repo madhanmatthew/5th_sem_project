@@ -15,15 +15,16 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import io from 'socket.io-client'; 
-import { PRIMARY_COLOR } from '../App'; 
+import { PRIMARY_COLOR } from '../App'; // Import the main color
 
 // --- Configuration ---
 // IMPORTANT: REPLACE THIS IP WITH YOUR PERMANENT, DEPLOYED URL!
+// Use the local IP for testing:
 const API_URL = 'http://192.168.29.123:3001'; 
-// Use const API_URL = 'https://sagarcafebackend.render.com'; when deployed!
+// Or use your deployment URL:
+// const API_URL = 'https://sagarcafebackend.render.com';
 
-// --- Mock Cafe Data (Ensure this array is COMPLETE) ---
-// This list is used for the categories menu
+// --- Mock Cafe Data (Used for fallback and structure) ---
 const CATEGORIES = [
   { id: 'C1', name: 'Premium Coffee', image: '/images/coffee.png' }, 
   { id: 'C2', name: 'All-Day Breakfast', image: '/images/breakfast.png' },
@@ -34,13 +35,12 @@ const CATEGORIES = [
   { id: 'C7', name: 'House Specials', image: '/images/special.png' },
 ];
 
-// NOTE: You must include all 15+ mock menu items here for fallback functionality!
 const CAFE_MENU_ADDITIONS = [
+    // This array ensures the app has something to show if the server is down.
+    // In production, this should ideally be removed, or contain only base data.
     { id: 11, name: 'Classic Cappuccino', price: 180.00, image: '/images/cappuccino.png', category: 'Premium Coffee' },
     { id: 12, name: 'Iced Caramel Macchiato', price: 250.00, image: '/images/macchiato.png', category: 'Premium Coffee' },
-    { id: 17, name: 'Alfredo White Sauce Pasta', price: 350.00, image: '/images/alfredopasta.png', category: 'Pastas & Bowls' },
-    { id: 20, name: 'Blueberry Cheesecake Slice', price: 420.00, image: '/images/cheesecake.png', category: 'Freshly Baked' },
-    // ... rest of your menu items ...
+    // ... all 22 items should be fully listed here ...
 ];
 
 // --- Main Logic Component (MainAppScreen) ---
@@ -61,16 +61,12 @@ export default function MainAppScreen({ navigation }) {
         const response = await fetch(`${API_URL}/api/menu`);
         const serverMenu = await response.json();
         
-        // Merge server menu with mock items for a full list
-        const mergedMenu = [...serverMenu, ...CAFE_MENU_ADDITIONS].reduce((acc, item) => {
-            if (!acc.some(existing => existing.id === item.id)) {
-                acc.push(item);
-            }
-            return acc;
-        }, []);
-        setMenu(mergedMenu.sort((a, b) => a.id - b.id)); 
+        // Use the menu from the DB (PostgreSQL) directly
+        // NOTE: The server now returns category info, which is great.
+        setMenu(serverMenu.sort((a, b) => a.id - b.id)); 
 
       } catch (error) {
+        console.error("Fetch Menu Error:", error);
         setMenu(CAFE_MENU_ADDITIONS); // Fallback to mock menu
         Alert.alert('Connection Error', `Could not reach server. Showing local Sagar Cafe menu.`);
       } finally {
@@ -83,6 +79,7 @@ export default function MainAppScreen({ navigation }) {
   // --- SOCKET.IO INTEGRATION (Real-time Order Tracking) ---
   useEffect(() => {
     prevMessageRef.current = activeOrder?.message;
+    // Only track if an order is active AND we are on the status view
     if (!activeOrder?.id || view !== 'orderStatus') return;
 
     const socket = io(API_URL, {
@@ -94,7 +91,8 @@ export default function MainAppScreen({ navigation }) {
         socket.emit('trackOrder', activeOrder.id); 
     });
 
-    socket.on('orderUpdate', (updatedOrder) => {
+    // FIX: LISTENING FOR 'order_update' to match backend emit
+    socket.on('order_update', (updatedOrder) => { 
         if (updatedOrder.id === activeOrder.id) {
             if (updatedOrder.message !== prevMessageRef.current) {
                 Vibration.vibrate(500);
@@ -113,10 +111,10 @@ export default function MainAppScreen({ navigation }) {
     return () => {
         socket.disconnect();
     };
-  }, [activeOrder?.id, view]); // Rerun when a NEW activeOrder ID is set OR view changes
+  }, [activeOrder?.id, view]);
 
 
-  // --- Cart and Order Logic ---
+  // --- Cart and Order Logic (Includes secure payload fix) ---
   const addToCart = (item) => {
     Vibration.vibrate(50);
     setCart((currentCart) => {
@@ -134,17 +132,36 @@ export default function MainAppScreen({ navigation }) {
     if (cart.length === 0) return;
     try {
       setIsLoading(true);
+      
+      // FIX: Map cart to only send id and quantity (required by DB backend)
+      const itemsPayload = cart.map(item => ({ 
+          id: item.id, 
+          quantity: item.quantity 
+      }));
+
+      // NOTE: We need to send the JWT token in the header here for verifyToken.js to work!
+      const userToken = await AsyncStorage.getItem('userToken'); // Assuming AsyncStorage is accessible here
+
       const response = await fetch(`${API_URL}/api/orders`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: cart }),
+        headers: { 
+            'Content-Type': 'application/json',
+            'x-auth-token': userToken || '', // Pass the JWT token
+        },
+        body: JSON.stringify({ items: itemsPayload }),
       });
+      
+      if (!response.ok) {
+        throw new Error(`Order failed! Status: ${response.status}`);
+      }
+
       const newOrder = await response.json();
       setActiveOrder(newOrder);
       setView('orderStatus');
       setCart([]);
     } catch (error) {
-      Alert.alert('Error', 'Could not place your order.');
+      console.error("Place Order Error:", error);
+      Alert.alert('Error', 'Could not place your order. Check if you are logged in.');
     } finally {
       setIsLoading(false);
     }
@@ -152,7 +169,7 @@ export default function MainAppScreen({ navigation }) {
 
   const totalCost = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // --- View Components ---
+  // --- View Components (Rendering logic remains the same) ---
   const renderCategoryItem = ({ item }) => (
     <View style={styles.categoryItem}>
       <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.categoryImage} />
@@ -177,8 +194,10 @@ export default function MainAppScreen({ navigation }) {
   const MenuView = () => {
     const groupedMenu = menu.reduce((acc, item) => {
         const category = item.category || 'Other Items';
-        if (!acc[category]) acc[category] = [];
-        acc[category].push(item);
+        if (item.category !== 'Icon-Asset') { // Filter out the utility icons
+            if (!acc[category]) acc[category] = [];
+            acc[category].push(item);
+        }
         return acc;
     }, {});
     
@@ -193,7 +212,7 @@ export default function MainAppScreen({ navigation }) {
 
     return (
       <>
-        {/* Top Location Bar */}
+        {/* Top Location Bar and Tabs (UI remains the same) */}
         <View style={styles.topBar}>
           <View style={styles.locationContainer}>
             <Text style={styles.locationText}>📍 Sagar Cafe Location</Text>
@@ -203,8 +222,6 @@ export default function MainAppScreen({ navigation }) {
             <Text style={styles.detectLocationText}>Change Location</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Delivery Tabs */}
         <View style={styles.deliveryTabs}>
           <TouchableOpacity style={[styles.tab, styles.activeTab]}>
             <Text style={styles.activeTabText}>Dine-in</Text>
@@ -230,7 +247,6 @@ export default function MainAppScreen({ navigation }) {
             showsHorizontalScrollIndicator={false}
             style={styles.categoryList}
           />
-
           <Text style={styles.whatsNewText}>New Arrivals & Specials</Text>
           <FlatList
             horizontal
@@ -243,7 +259,6 @@ export default function MainAppScreen({ navigation }) {
             style={styles.bannerList}
           />
 
-          {/* Main Menu (Grouped by Category) */}
           {Object.keys(groupedMenu).map(category => (
               <View key={category}>
                   <Text style={styles.menuSectionHeader}>{category}</Text>
@@ -338,7 +353,6 @@ export default function MainAppScreen({ navigation }) {
       <SafeAreaView style={styles.container}>
         {notification && (<View style={styles.notificationBanner}><Text style={styles.notificationText}>{notification}</Text></View>)}
         
-        {/* Profile Button (Navigate to ProfileScreen) */}
         <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('Profile')}>
             <Text style={styles.profileButtonText}>👤 Profile</Text>
         </TouchableOpacity>
@@ -371,14 +385,13 @@ export default function MainAppScreen({ navigation }) {
   );
 }
 
-// --- Styles ---
+// --- Styles (Complete and unchanged from previous steps) ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   menuScrollView: { flex: 1, paddingHorizontal: 0 },
   header: { padding: 15, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
   headerText: { color: '#333', fontSize: 20, textAlign: 'center', fontWeight: 'bold' },
-
   profileButton: {
     position: 'absolute',
     top: 40, 
@@ -394,31 +407,26 @@ const styles = StyleSheet.create({
       color: PRIMARY_COLOR,
       fontWeight: 'bold',
   },
-
   topBar: { backgroundColor: PRIMARY_COLOR, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   locationContainer: { paddingLeft: 10 },
   locationText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
   locationSubText: { color: '#f0f0f0', fontSize: 12 },
   detectLocationButton: { backgroundColor: '#fff', padding: 8, borderRadius: 5, marginRight: 10 },
   detectLocationText: { color: PRIMARY_COLOR, fontWeight: 'bold', fontSize: 14 },
-
   deliveryTabs: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
   tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 3, borderBottomColor: 'transparent' },
   activeTab: { borderBottomColor: PRIMARY_COLOR },
   tabText: { fontSize: 14, color: '#666', fontWeight: '600' },
   activeTabText: { fontSize: 14, color: PRIMARY_COLOR, fontWeight: 'bold' },
   tabSubText: { fontSize: 10, color: '#999' },
-
   cravingText: { fontSize: 20, fontWeight: 'bold', paddingHorizontal: 15, marginVertical: 15 },
   categoryList: { marginBottom: 15, paddingLeft: 15 },
   categoryItem: { width: 90, alignItems: 'center', marginRight: 10 },
   categoryImage: { width: 60, height: 60, borderRadius: 30, borderWidth: 1, borderColor: '#ccc' },
   categoryName: { fontSize: 12, textAlign: 'center', marginTop: 5, fontWeight: '500' },
-
   whatsNewText: { fontSize: 20, fontWeight: 'bold', paddingHorizontal: 15, marginTop: 5, marginBottom: 10 },
   bannerList: { marginBottom: 20, paddingLeft: 15 },
   bannerImage: { width: 300, height: 150, borderRadius: 8, marginRight: 10, resizeMode: 'cover' },
-  
   menuSectionHeader: { fontSize: 22, fontWeight: 'bold', paddingHorizontal: 15, marginTop: 20, marginBottom: 10, color: PRIMARY_COLOR },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: 'white', paddingHorizontal: 15 },
   dishImage: { width: 100, height: 100, borderRadius: 8, marginRight: 15 },
@@ -437,7 +445,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addButtonText: { color: PRIMARY_COLOR, fontWeight: 'bold' },
-
   floatingCartContainer: {
     backgroundColor: '#333',
     flexDirection: 'row',
@@ -462,23 +469,19 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   viewCartButtonText: { color: 'white', fontWeight: 'bold' },
-
   cartDetailsTitle: { fontSize: 22, fontWeight: 'bold', paddingHorizontal: 15, marginVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 10 },
   cartDetailItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
   cartDetailItemName: { flex: 3, fontSize: 16 },
   cartDetailItemQuantity: { flex: 1, textAlign: 'center', fontSize: 16 },
   cartDetailItemPrice: { flex: 1, textAlign: 'right', fontSize: 16, fontWeight: 'bold' },
-  
   cartContainer: { padding: 20, borderTopWidth: 1, borderColor: '#ccc', backgroundColor: 'white' },
   totalText: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, textAlign: 'right' },
   checkoutButton: { backgroundColor: PRIMARY_COLOR, padding: 15, borderRadius: 8 },
   orderButtonText: { color: 'white', textAlign: 'center', fontSize: 18, fontWeight: 'bold' },
-
   bottomNav: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#eee', paddingVertical: 5 },
   navItem: { padding: 10, alignItems: 'center' },
   navText: { fontSize: 12, color: '#333' },
   navActiveText: { fontWeight: 'bold', color: PRIMARY_COLOR },
-
   notificationBanner: {
     position: 'absolute',
     top: 50,
@@ -490,12 +493,11 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   notificationText: { color: 'white', textAlign: 'center', fontWeight: 'bold' },
-  statusContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: '#333' }, 
+  statusContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#333' }, 
   statusTitle: { fontSize: 26, fontWeight: 'bold', color: 'white' },
   statusMessage: { fontSize: 20, textAlign: 'center', marginVertical: 20, fontWeight: '500', color: 'white' },
   statusSubText: { fontSize: 14, color: '#f0f0f0', marginTop: 10 },
   newOrderButton: { backgroundColor: 'white', padding: 15, borderRadius: 8, marginTop: 30, width: '80%' },
-
   status_pending: { container: { backgroundColor: '#f0ad4e' }, text: { color: 'white' }, buttonText: { color: '#333' } },
   status_queued: { container: { backgroundColor: '#0275d8' }, text: { color: 'white' }, buttonText: { color: '#333' } },
   status_preparing: { container: { backgroundColor: '#5bc0de' }, text: { color: 'white' }, buttonText: { color: '#333' } },
