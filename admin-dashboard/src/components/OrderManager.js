@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import io from 'socket.io-client';
 
-const API_URL = 'http://localhost:3001';
+const API_URL = 'https://restaurant-app-backend-qwfb.onrender.com';
 const socket = io(API_URL); // Connect to your backend socket
 
 function OrderManager() {
