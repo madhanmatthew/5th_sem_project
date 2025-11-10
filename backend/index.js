@@ -1,15 +1,15 @@
 /* === FINAL BACKEND (Full Server) === */
+/* This file includes PostgreSQL, Socket.io, JWT Auth, and Menu CRUD */
 
-require('dotenv').config();
+require('dotenv').config(); // Reads your .env file
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const { Pool } = require('pg');
-const http = require('http');
-const { Server } = require('socket.io');
+const http = require('http'); // Required for socket.io
+const { Server } = require('socket.io'); // Import socket.io
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const verifyToken = require('./verifyToken'); // Make sure this file exists
+const verifyToken = require('./verifyToken'); // Import our new middleware
 
 const app = express();
 const port = 3001;
@@ -17,62 +17,50 @@ const port = 3001;
 // --- Middleware ---
 app.use(cors());
 app.use(express.json());
-
-// FIXED STATIC FILE SERVING: Maps the virtual URL path '/images' to the physical folder './images'
-app.use('/images', express.static(path.join(__dirname, 'images'))); 
+app.use(express.static('public'));
 
 // --- Socket.io Setup ---
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "*", // Allow all origins
     methods: ["GET", "POST"]
   }
 });
 
 // --- PostgreSQL Connection ---
-// This will use your Render DATABASE_URL when deployed, or your local one when run locally
-const connectionString = process.env.DATABASE_URL || `postgresql://postgres:Madhan@1107@localhost:5432/restaurant_db`;
-
-// !!! IMPORTANT: Replace 'Madhan@1107' above with your *actual* local password
+// This will use your Render DATABASE_URL from your .env file
+const connectionString = process.env.DATABASE_URL;
 
 const pool = new Pool({
   connectionString: connectionString,
   // This 'ssl' part is REQUIRED for Render's database
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false 
+  ssl: { rejectUnauthorized: false } 
 });
 
 // Check DB connection
 pool.query('SELECT NOW()', (err, res) => {
-    if (err) {
-        console.error('Error connecting to PostgreSQL database', err.stack);
-    } else {
-        console.log('✅ Successfully connected to PostgreSQL database.');
-    }
+  if (err) {
+    console.error('Error connecting to PostgreSQL database', err.stack);
+  } else {
+    console.log('✅ Successfully connected to PostgreSQL database.');
+  }
 });
 
 // --- Socket.io Connection ---
-function emitOrderUpdate(order) {
-    io.emit('order_update', order); 
-    console.log(`[Socket.io] Emitted status update for Order #${order.id}`);
-}
-
 io.on('connection', (socket) => {
-    console.log('A user connected', socket.id);
-    socket.on('trackOrder', (orderId) => {
-        console.log(`Client ${socket.id} tracking Order #${orderId}`);
-    });
-    socket.on('disconnect', () => {
-        console.log('User disconnected', socket.id);
-    });
+  console.log('A user connected', socket.id);
+  socket.on('disconnect', () => {
+    console.log('User disconnected', socket.id);
+  });
 });
 
 /* ==================================
- AUTHENTICATION API
+ AUTHENTICATION API (The REAL one)
 ==================================
 */
 
-// POST /api/auth/register (FIXED - Now creates a token)
+// POST /api/auth/register (For Customers)
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) {
@@ -89,7 +77,7 @@ app.post('/api/auth/register', async (req, res) => {
     );
     const newUser = newUserResult.rows[0];
 
-    // 2. Create a token for the new user (This was the missing part)
+    // 2. Create a token for the new user
     const payload = {
       user: {
         id: newUser.id,
@@ -106,7 +94,6 @@ app.post('/api/auth/register', async (req, res) => {
       { expiresIn: '3h' },
       (err, token) => {
         if (err) throw err;
-        // Now it sends the token AND user, which the app expects
         res.status(201).json({ token, user: payload.user }); 
       }
     );
@@ -127,15 +114,20 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(400).send('Email and password are required.');
   }
   try {
+    // 1. Find user in the REAL database
     const userResult = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (userResult.rows.length === 0) {
       return res.status(400).send('Invalid credentials.');
     }
     const user = userResult.rows[0];
+
+    // 2. Check password with bcrypt (This is the real check)
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).send('Invalid credentials.');
     }
+
+    // 3. Create JWT Token
     const payload = {
       user: {
         id: user.id,
@@ -144,6 +136,7 @@ app.post('/api/auth/login', async (req, res) => {
         isAdmin: user.is_admin
       }
     };
+
     jwt.sign(
       payload,
       'your_jwt_secret_key',
@@ -163,7 +156,6 @@ app.post('/api/auth/login', async (req, res) => {
  MENU API
 ==================================
 */
-
 // GET /api/menu (Public)
 app.get('/api/menu', async (req, res) => {
   try {
@@ -224,12 +216,10 @@ app.delete('/api/menu/:id', verifyToken, async (req, res) => {
   }
 });
 
-
 /* ==================================
  ORDER API
 ==================================
 */
-
 // GET /api/orders (Admin Only)
 app.get('/api/orders', verifyToken, async (req, res) => {
   if (!req.user.isAdmin) return res.status(403).send('Access Denied');
@@ -264,7 +254,7 @@ app.get('/api/orders/my-order', verifyToken, async (req, res) => {
       ORDER BY timestamp DESC
       LIMIT 1
     `;
-    const orderResult = await pool.query(orderQuery, [req.user.id]); // Uses the real user ID
+    const orderResult = await pool.query(orderQuery, [req.user.id]);
     if (orderResult.rows.length === 0) {
       return res.status(404).send('No active order found');
     }
@@ -278,7 +268,7 @@ app.get('/api/orders/my-order', verifyToken, async (req, res) => {
 // POST /api/orders (Customer Only)
 app.post('/api/orders', verifyToken, async (req, res) => {
   const { items } = req.body;
-  const userId = req.user.id; // Uses the real user ID from the token
+  const userId = req.user.id;
   const client = await pool.connect();
   
   try {
@@ -319,7 +309,7 @@ app.post('/api/orders', verifyToken, async (req, res) => {
     const fullOrder = fullOrderResult.rows[0];
 
     io.emit('new_order', fullOrder); // Emits to admin dashboard
-    emitOrderUpdate(newOrder); // Emits update to the customer
+    io.emit('order_update', newOrder); // Emits update to the customer
     
     res.status(201).json(newOrder);
     
@@ -344,7 +334,7 @@ app.put('/api/orders/:id/status', verifyToken, async (req, res) => {
       return res.status(404).send('Order not found');
     }
     const updatedOrder = result.rows[0];
-    emitOrderUpdate(updatedOrder); // Emits update to the customer
+    io.emit('order_update', updatedOrder); // Emits update to the customer
     res.json(updatedOrder);
   } catch (err) {
     console.error(err.message);
