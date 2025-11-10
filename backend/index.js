@@ -1,15 +1,14 @@
-/* === FINAL BACKEND (Full Server) === */
-/* This file includes PostgreSQL, Socket.io, JWT Auth, and Menu CRUD */
+/* === FINAL BACKEND (Simplified Login) === */
+/* This version DOES NOT use bcrypt, for easier demo login. */
 
-require('dotenv').config(); // Reads your .env file
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
-const http = require('http'); // Required for socket.io
-const { Server } = require('socket.io'); // Import socket.io
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const verifyToken = require('./verifyToken'); // Import our new middleware
+const http = require('http');
+const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken'); // Still use JWT for tokens
+const verifyToken = require('./verifyToken');
 
 const app = express();
 const port = 3001;
@@ -23,18 +22,15 @@ app.use(express.static('public'));
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow all origins
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
 
 // --- PostgreSQL Connection ---
-// This will use your Render DATABASE_URL from your .env file
 const connectionString = process.env.DATABASE_URL;
-
 const pool = new Pool({
   connectionString: connectionString,
-  // This 'ssl' part is REQUIRED for Render's database
   ssl: { rejectUnauthorized: false } 
 });
 
@@ -56,92 +52,65 @@ io.on('connection', (socket) => {
 });
 
 /* ==================================
- AUTHENTICATION API (The REAL one)
+ AUTHENTICATION API (SIMPLE)
 ==================================
 */
 
-// POST /api/auth/register (For Customers)
+// POST /api/auth/register (SIMPLE)
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) {
     return res.status(400).send('All fields are required.');
   }
   try {
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    
-    // 1. Create the user
+    // DO NOT HASH THE PASSWORD
+    // const salt = await bcrypt.genSalt(10);
+    // const hashedPassword = await bcrypt.hash(password, salt);
+    const simplePassword = password; // Just save the plain text
+
     const newUserResult = await pool.query(
       "INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email, is_admin",
-      [name, email, hashedPassword]
+      [name, email, simplePassword] // Save the simple password
     );
     const newUser = newUserResult.rows[0];
 
-    // 2. Create a token for the new user
-    const payload = {
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        isAdmin: newUser.is_admin
-      }
-    };
-
-    // 3. Sign the token and send it back
-    jwt.sign(
-      payload,
-      'your_jwt_secret_key', // Use the same secret as your /login route
-      { expiresIn: '3h' },
-      (err, token) => {
+    const payload = { user: { id: newUser.id, email: newUser.email, name: newUser.name, isAdmin: newUser.is_admin } };
+    
+    jwt.sign( payload, 'your_jwt_secret_key', { expiresIn: '3h' }, (err, token) => {
         if (err) throw err;
         res.status(201).json({ token, user: payload.user }); 
       }
     );
-
   } catch (err) {
     console.error(err.message);
-    if (err.code === '23505') {
-      return res.status(400).send('Email already exists.');
-    }
+    if (err.code === '23505') { return res.status(400).send('Email already exists.'); }
     res.status(500).send('Server Error');
   }
 });
 
-// POST /api/auth/login
+// POST /api/auth/login (SIMPLE)
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).send('Email and password are required.');
   }
   try {
-    // 1. Find user in the REAL database
+    // 1. Find user in the database
     const userResult = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (userResult.rows.length === 0) {
       return res.status(400).send('Invalid credentials.');
     }
     const user = userResult.rows[0];
 
-    // 2. Check password with bcrypt (This is the real check)
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
+    // 2. Check password (SIMPLE, INSECURE CHECK)
+    // We just check if the text matches exactly.
+    if (password !== user.password) {
       return res.status(400).send('Invalid credentials.');
     }
 
     // 3. Create JWT Token
-    const payload = {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        isAdmin: user.is_admin
-      }
-    };
-
-    jwt.sign(
-      payload,
-      'your_jwt_secret_key',
-      { expiresIn: '3h' },
-      (err, token) => {
+    const payload = { user: { id: user.id, email: user.email, name: user.name, isAdmin: user.is_admin } };
+    jwt.sign( payload, 'your_jwt_secret_key', { expiresIn: '3h' }, (err, token) => {
         if (err) throw err;
         res.json({ token, user: payload.user });
       }
@@ -153,7 +122,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 /* ==================================
- MENU API
+ MENU API (SECURE)
 ==================================
 */
 // GET /api/menu (Public)
@@ -217,7 +186,7 @@ app.delete('/api/menu/:id', verifyToken, async (req, res) => {
 });
 
 /* ==================================
- ORDER API
+ ORDER API (SECURE)
 ==================================
 */
 // GET /api/orders (Admin Only)
@@ -308,8 +277,8 @@ app.post('/api/orders', verifyToken, async (req, res) => {
     const fullOrderResult = await client.query(fullOrderQuery, [newOrder.id]);
     const fullOrder = fullOrderResult.rows[0];
 
-    io.emit('new_order', fullOrder); // Emits to admin dashboard
-    io.emit('order_update', newOrder); // Emits update to the customer
+    io.emit('new_order', fullOrder);
+    io.emit('order_update', newOrder);
     
     res.status(201).json(newOrder);
     
@@ -334,14 +303,13 @@ app.put('/api/orders/:id/status', verifyToken, async (req, res) => {
       return res.status(404).send('Order not found');
     }
     const updatedOrder = result.rows[0];
-    io.emit('order_update', updatedOrder); // Emits update to the customer
+    io.emit('order_update', updatedOrder);
     res.json(updatedOrder);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
   }
 });
-
 
 // --- Start the Server ---
 server.listen(port, () => {
