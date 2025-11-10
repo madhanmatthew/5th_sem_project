@@ -1,17 +1,16 @@
-// customer-app/screens/AuthScreen.js
+// screens/AuthScreen.js
 
 import React, { useState } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
   Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView
 } from 'react-native';
-import { useAuth } from '../AuthContext'; // Import from new context file
-import { PRIMARY_COLOR, API_URL } from '../config'; // Import from new config file
-import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../AuthContext'; 
+import { PRIMARY_COLOR, API_URL } from '../config'; 
+import axios from 'axios';
 
 export default function AuthScreen() {
-  // Get the signIn function from our new AuthContext
   const { signIn } = useAuth(); 
   
   const [isLogin, setIsLogin] = useState(true);
@@ -21,13 +20,11 @@ export default function AuthScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleAuth = async () => {
-    // Check for empty fields
     if (!email || !password || (!isLogin && !name)) {
       return Alert.alert('Validation Error', 'Please fill all required fields.');
     }
 
     setIsLoading(true);
-    // Set the correct API endpoint and data payload
     const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
     const body = isLogin ? { email, password } : { name, email, password };
 
@@ -37,15 +34,12 @@ export default function AuthScreen() {
       const { token, user } = response.data;
       
       if (token && user) {
-        // If login is successful, call signIn from our context
-        // This will save the token and user, and App.js will auto-navigate
-        await signIn(token, user); 
+        await signIn(token, user); // Call signIn from context
       } else {
         throw new Error("Token or user data not received.");
       }
     } catch (error) {
       console.error('Auth Error:', error);
-      // Get the error message from the backend if it exists
       const message = error.response?.data?.message || error.response?.data || 'Could not connect to the server.';
       Alert.alert('Login/Registration Failed', message);
     } finally {
@@ -53,14 +47,10 @@ export default function AuthScreen() {
     }
   };
 
-  // --- THIS IS YOUR NEW SKIP FUNCTION ---
+  // Skip function for development
   const handleSkip = () => {
-    // We create a fake "Guest" user and a fake token
     const guestUser = { id: 0, name: "Guest", email: "guest@guest.com" };
     const fakeToken = "DEV_SKIP_TOKEN";
-    
-    // We call signIn to log in as this fake user.
-    // This will make the app work without a real backend login.
     signIn(fakeToken, guestUser);
   };
 
@@ -74,7 +64,6 @@ export default function AuthScreen() {
           <Text style={styles.logo}>Sagar Cafe</Text>
           <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Create Your Account'}</Text>
           
-          {/* This field only shows when registering */}
           {!isLogin && (
             <TextInput 
               style={styles.input} 
@@ -120,7 +109,6 @@ export default function AuthScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* --- YOUR NEW SKIP BUTTON --- */}
           <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
             <Text style={styles.switchText}>Skip Login (For Dev)</Text>
           </TouchableOpacity>
@@ -131,64 +119,16 @@ export default function AuthScreen() {
   );
 }
 
-// --- STYLES (Your file, unchanged) ---
+// STYLES
 const styles = StyleSheet.create({
-    container: { 
-        flex: 1, 
-        backgroundColor: '#f5f5f5' 
-    },
-    scrollContent: {
-        flexGrow: 1,
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        padding: 20, 
-    },
-    logo: { 
-        fontSize: 36, 
-        fontWeight: '900', 
-        color: PRIMARY_COLOR, 
-        marginBottom: 10 
-    },
-    title: { 
-        fontSize: 24, 
-        marginBottom: 30, 
-        fontWeight: '600',
-        color: '#333'
-    },
-    input: { 
-        width: '100%', 
-        padding: 15, 
-        marginVertical: 10, 
-        borderWidth: 1, 
-        borderColor: '#ddd', 
-        borderRadius: 8, 
-        backgroundColor: 'white',
-        fontSize: 16,
-    },
-    button: { 
-        width: '100%', 
-        padding: 15, 
-        backgroundColor: PRIMARY_COLOR, 
-        borderRadius: 8, 
-        marginTop: 20,
-        minHeight: 55,
-        justifyContent: 'center',
-    },
-    buttonText: { 
-        color: 'white', 
-        textAlign: 'center', 
-        fontWeight: 'bold', 
-        fontSize: 18 
-    },
-    switchButton: { 
-        marginTop: 20 
-    },
-    switchText: { 
-        color: PRIMARY_COLOR, 
-        fontSize: 16 
-    },
-    skipButton: { // Style for the new skip button
-        marginTop: 15,
-        padding: 10,
-    }
+    container: { flex: 1, backgroundColor: '#f5f5f5' },
+    scrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+    logo: { fontSize: 36, fontWeight: '900', color: PRIMARY_COLOR, marginBottom: 10 },
+    title: { fontSize: 24, marginBottom: 30, fontWeight: '600', color: '#333' },
+    input: { width: '100%', padding: 15, marginVertical: 10, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, backgroundColor: 'white', fontSize: 16 },
+    button: { width: '100%', padding: 15, backgroundColor: PRIMARY_COLOR, borderRadius: 8, marginTop: 20, minHeight: 55, justifyContent: 'center' },
+    buttonText: { color: 'white', textAlign: 'center', fontWeight: 'bold', fontSize: 18 },
+    switchButton: { marginTop: 20 },
+    switchText: { color: PRIMARY_COLOR, fontSize: 16 },
+    skipButton: { marginTop: 15, padding: 10 }
 });

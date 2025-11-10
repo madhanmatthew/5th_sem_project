@@ -2,36 +2,23 @@
 
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import {
-  StyleSheet,
-  Text,
-  View,
-  FlatList,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  Vibration,
-  ScrollView,
-  Alert,
+  StyleSheet, Text, View, FlatList, TouchableOpacity,
+  Image, ActivityIndicator, Vibration, ScrollView, Alert,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import io from 'socket.io-client';
-import axios from 'axios'; // We will use axios for authenticated requests
+import axios from 'axios'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// --- Import from our new helper files ---
 import { PRIMARY_COLOR, API_URL } from '../config';
 import { useAuth } from '../AuthContext';
 
 // --- SOCKET.IO and API CLIENT SETUP ---
-// We connect to the socket server one time
 const socket = io(API_URL, {
   transports: ['websocket'],
 });
 
-// This is a helper function to create an API client that
-// automatically includes the user's login token in all requests.
 const getApiClient = async () => {
-  // Get the token that AuthScreen saved
   const token = await AsyncStorage.getItem('userToken'); 
   return axios.create({
     baseURL: API_URL,
@@ -39,44 +26,39 @@ const getApiClient = async () => {
   });
 };
 
-// --- Main Logic Component (MainAppScreen) ---
+// --- Main Logic Component ---
 export default function MainAppScreen({ navigation }) {
-  const [menu, setMenu] = useState([]); // Will be filled from API
+  const [menu, setMenu] = useState([]); 
   const [cart, setCart] = useState([]);
-  const [view, setView] = useState('menu'); // 'menu', 'cartDetails', 'orderStatus'
+  const [view, setView] = useState('menu'); 
   const [activeOrder, setActiveOrder] = useState(null);
   const [notification, setNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const prevMessageRef = useRef();
   
-  // Get the logged-in user's data from our context
   const { user } = useAuth();
 
-  // --- Data Fetching (FIXED) ---
+  // --- Data Fetching ---
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const apiClient = await getApiClient(); // Use our new authenticated client
+        const apiClient = await getApiClient(); 
         
         // 1. Check for an active order first
         try {
-          // This call is now authenticated
           const orderResponse = await apiClient.get('/api/orders/my-order');
           if (orderResponse.data) {
             setActiveOrder(orderResponse.data);
-            setView('orderStatus'); // Go straight to tracking
+            setView('orderStatus'); 
           }
         } catch (orderError) {
-          // A 404 "Not Found" error is normal, it just means no active order.
           if (orderError.response && orderError.response.status !== 404) {
              console.log("Could not fetch active order.");
           }
         }
         
         // 2. Fetch the menu from the backend
-        // This is now the ONLY source of truth for the menu.
-        // All your hardcoded arrays are gone.
         const menuResponse = await apiClient.get('/api/menu');
         setMenu(menuResponse.data.sort((a, b) => a.id - b.id));
 
@@ -88,16 +70,16 @@ export default function MainAppScreen({ navigation }) {
       }
     };
     loadData();
-  }, []); // Runs once on load
+  }, []); 
 
-  // --- SOCKET.IO INTEGRATION (Your logic, unchanged) ---
+  // --- SOCKET.IO INTEGRATION ---
   useEffect(() => {
     prevMessageRef.current = activeOrder?.message;
-    // Only track if an order is active AND we are on the status view
     if (!activeOrder?.id || view !== 'orderStatus') return;
 
     socket.on('connect', () => {
       console.log(`[Socket] Connected. Tracking Order #${activeOrder.id}`);
+      socket.emit('trackOrder', activeOrder.id);
     });
 
     socket.on('order_update', (updatedOrder) => {
@@ -123,7 +105,7 @@ export default function MainAppScreen({ navigation }) {
   }, [activeOrder?.id, view]);
 
 
-  // --- Cart and Order Logic (FIXED) ---
+  // --- Cart and Order Logic ---
   const addToCart = (item) => {
     Vibration.vibrate(50);
     setCart((currentCart) => {
@@ -141,9 +123,7 @@ export default function MainAppScreen({ navigation }) {
     if (cart.length === 0) return;
     setIsLoading(true);
     try {
-      const apiClient = await getApiClient(); // Use authenticated client
-      
-      // Send only the item IDs and quantities, as per your backend's needs
+      const apiClient = await getApiClient(); 
       const orderItems = cart.map(item => ({ id: item.id, quantity: item.quantity }));
       
       const response = await apiClient.post('/api/orders', { items: orderItems });
@@ -162,7 +142,7 @@ export default function MainAppScreen({ navigation }) {
 
   const totalCost = cart.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
 
-  // --- View Components (Rendering logic remains the same) ---
+  // --- View Components ---
   const renderCategoryItem = ({ item }) => (
     <View style={styles.categoryItem}>
       <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.categoryImage} />
@@ -185,25 +165,27 @@ export default function MainAppScreen({ navigation }) {
   );
 
   const MenuView = () => {
-    // Dynamically create the category list from the menu (FIXED)
+    // Dynamically create category list
     const dynamicCategories = menu.reduce((acc, item) => {
       const categoryName = item.category || 'Other Items';
-      if (!acc[categoryName]) {
+      if (categoryName !== 'Icon-Asset' && !acc[categoryName]) { // Filter out icons
         acc[categoryName] = { 
           id: categoryName, 
           name: categoryName, 
-          image: item.image || '/images/default.png' // Use first item's image
+          image: item.image || '/images/default.png'
         };
       }
       return acc;
     }, {});
     const categoryList = Object.values(dynamicCategories);
     
-    // Group menu items by category (FIXED)
+    // Group menu items by category
     const groupedMenu = menu.reduce((acc, item) => {
       const category = item.category || 'Other Items';
-      if (!acc[category]) acc[category] = [];
-      acc[category].push(item);
+      if (category !== 'Icon-Asset') { // Filter out icons
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(item);
+      }
       return acc;
     }, {});
     
@@ -218,7 +200,7 @@ export default function MainAppScreen({ navigation }) {
 
     return (
       <>
-        {/* Top Location Bar and Tabs (UI remains the same) */}
+        {/* Top Location Bar and Tabs */}
         <View style={styles.topBar}>
           <View style={styles.locationContainer}>
             <Text style={styles.locationText}>📍 Sagar Cafe Location</Text>
@@ -247,7 +229,7 @@ export default function MainAppScreen({ navigation }) {
           <Text style={styles.cravingText}>What are you craving for?</Text>
           <FlatList
             horizontal
-            data={categoryList} // Use dynamic list
+            data={categoryList} 
             renderItem={renderCategoryItem}
             keyExtractor={(item) => item.id}
             showsHorizontalScrollIndicator={false}
@@ -256,7 +238,7 @@ export default function MainAppScreen({ navigation }) {
           <Text style={styles.whatsNewText}>New Arrivals & Specials</Text>
           <FlatList
             horizontal
-            data={menu.slice(0, 4)} // Show first 4 items from server
+            data={menu.slice(0, 4)} 
             renderItem={({ item }) => (
               <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.bannerImage} />
             )}
@@ -342,14 +324,10 @@ export default function MainAppScreen({ navigation }) {
 
   const renderView = () => {
     switch (view) {
-      case 'menu':
-        return <MenuView />;
-      case 'cartDetails':
-        return <CartDetailsView />;
-      case 'orderStatus':
-        return <OrderStatusView />;
-      default:
-        return <MenuView />;
+      case 'menu': return <MenuView />;
+      case 'cartDetails': return <CartDetailsView />;
+      case 'orderStatus': return <OrderStatusView />;
+      default: return <MenuView />;
     }
   };
 
@@ -360,13 +338,11 @@ export default function MainAppScreen({ navigation }) {
         {notification && (<View style={styles.notificationBanner}><Text style={styles.notificationText}>{notification}</Text></View>)}
         
         <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('Profile')}>
-           {/* Use the user's name from context */}
           <Text style={styles.profileButtonText}>👤 {user ? user.name : 'Account'}</Text>
         </TouchableOpacity>
 
         {renderView()}
 
-        {/* Floating Cart Overlay */}
         {cart.length > 0 && view === 'menu' && (
           <View style={styles.floatingCartContainer}>
             <View style={styles.cartSummary}>
@@ -379,7 +355,6 @@ export default function MainAppScreen({ navigation }) {
           </View>
         )}
 
-        {/* Bottom Navigation */}
         <View style={styles.bottomNav}>
           <TouchableOpacity style={styles.navItem} onPress={() => setView('menu')}><Text style={[styles.navText, view === 'menu' && styles.navActiveText]}>☕ Menu</Text></TouchableOpacity>
           <TouchableOpacity style={styles.navItem} onPress={() => setView('orderStatus')}><Text style={[styles.navText, view === 'orderStatus' && styles.navActiveText]}>🧾 Orders</Text></TouchableOpacity>
@@ -392,7 +367,7 @@ export default function MainAppScreen({ navigation }) {
   );
 }
 
-// --- STYLES (Your exact styles, unchanged) ---
+// --- STYLES ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
