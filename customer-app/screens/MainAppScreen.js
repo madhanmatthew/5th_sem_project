@@ -10,15 +10,20 @@ import io from 'socket.io-client';
 import axios from 'axios'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { PRIMARY_COLOR, API_URL } from '../config';
+// --- Import from our new helper files ---
+import API_URL, { PRIMARY_COLOR } from '../config'; // Corrected import
 import { useAuth } from '../AuthContext';
 
 // --- SOCKET.IO and API CLIENT SETUP ---
+// We connect to the socket server one time
 const socket = io(API_URL, {
   transports: ['websocket'],
 });
 
+// This is a helper function to create an API client that
+// automatically includes the user's login token in all requests.
 const getApiClient = async () => {
+  // Get the token that AuthScreen saved
   const token = await AsyncStorage.getItem('userToken'); 
   return axios.create({
     baseURL: API_URL,
@@ -26,39 +31,43 @@ const getApiClient = async () => {
   });
 };
 
-// --- Main Logic Component ---
+// --- Main Logic Component (MainAppScreen) ---
 export default function MainAppScreen({ navigation }) {
-  const [menu, setMenu] = useState([]); 
+  const [menu, setMenu] = useState([]); // Will be filled from API
   const [cart, setCart] = useState([]);
-  const [view, setView] = useState('menu'); 
+  const [view, setView] = useState('menu'); // 'menu', 'cartDetails', 'orderStatus'
   const [activeOrder, setActiveOrder] = useState(null);
   const [notification, setNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const prevMessageRef = useRef();
   
+  // Get the logged-in user's data from our context
   const { user } = useAuth();
 
-  // --- Data Fetching ---
+  // --- Data Fetching (FIXED) ---
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const apiClient = await getApiClient(); 
+        const apiClient = await getApiClient(); // Use our new authenticated client
         
         // 1. Check for an active order first
         try {
+          // This call is now authenticated
           const orderResponse = await apiClient.get('/api/orders/my-order');
           if (orderResponse.data) {
             setActiveOrder(orderResponse.data);
-            setView('orderStatus'); 
+            setView('orderStatus'); // Go straight to tracking
           }
         } catch (orderError) {
+          // A 404 "Not Found" error is normal, it just means no active order.
           if (orderError.response && orderError.response.status !== 404) {
              console.log("Could not fetch active order.");
           }
         }
         
         // 2. Fetch the menu from the backend
+        // This is now the ONLY source of truth for the menu.
         const menuResponse = await apiClient.get('/api/menu');
         setMenu(menuResponse.data.sort((a, b) => a.id - b.id));
 
@@ -70,11 +79,12 @@ export default function MainAppScreen({ navigation }) {
       }
     };
     loadData();
-  }, []); 
+  }, []); // Runs once on load
 
   // --- SOCKET.IO INTEGRATION ---
   useEffect(() => {
     prevMessageRef.current = activeOrder?.message;
+    // Only track if an order is active AND we are on the status view
     if (!activeOrder?.id || view !== 'orderStatus') return;
 
     socket.on('connect', () => {
@@ -98,14 +108,16 @@ export default function MainAppScreen({ navigation }) {
       console.log(`[Socket] Connection Error: ${err.message}`);
     });
 
+    // Clean up listeners when component unmounts or view changes
     return () => {
       socket.off('order_update');
       socket.off('connect');
+      socket.off('connect_error');
     };
   }, [activeOrder?.id, view]);
 
 
-  // --- Cart and Order Logic ---
+  // --- Cart and Order Logic (FIXED) ---
   const addToCart = (item) => {
     Vibration.vibrate(50);
     setCart((currentCart) => {
@@ -123,7 +135,9 @@ export default function MainAppScreen({ navigation }) {
     if (cart.length === 0) return;
     setIsLoading(true);
     try {
-      const apiClient = await getApiClient(); 
+      const apiClient = await getApiClient(); // Use authenticated client
+      
+      // Send only the item IDs and quantities, as per your backend's needs
       const orderItems = cart.map(item => ({ id: item.id, quantity: item.quantity }));
       
       const response = await apiClient.post('/api/orders', { items: orderItems });
@@ -142,7 +156,7 @@ export default function MainAppScreen({ navigation }) {
 
   const totalCost = cart.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
 
-  // --- View Components ---
+  // --- View Components (Rendering logic remains the same) ---
   const renderCategoryItem = ({ item }) => (
     <View style={styles.categoryItem}>
       <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.categoryImage} />
@@ -165,24 +179,26 @@ export default function MainAppScreen({ navigation }) {
   );
 
   const MenuView = () => {
-    // Dynamically create category list
+    // Dynamically create the category list from the menu (FIXED)
     const dynamicCategories = menu.reduce((acc, item) => {
       const categoryName = item.category || 'Other Items';
-      if (categoryName !== 'Icon-Asset' && !acc[categoryName]) { // Filter out icons
+      // Filter out the 'Icon-Asset' category
+      if (categoryName !== 'Icon-Asset' && !acc[categoryName]) { 
         acc[categoryName] = { 
           id: categoryName, 
           name: categoryName, 
-          image: item.image || '/images/default.png'
+          image: item.image || '/images/default.png' // Use first item's image
         };
       }
       return acc;
     }, {});
     const categoryList = Object.values(dynamicCategories);
     
-    // Group menu items by category
+    // Group menu items by category (FIXED)
     const groupedMenu = menu.reduce((acc, item) => {
       const category = item.category || 'Other Items';
-      if (category !== 'Icon-Asset') { // Filter out icons
+      // Filter out the 'Icon-Asset' category
+      if (category !== 'Icon-Asset') { 
         if (!acc[category]) acc[category] = [];
         acc[category].push(item);
       }
@@ -200,7 +216,7 @@ export default function MainAppScreen({ navigation }) {
 
     return (
       <>
-        {/* Top Location Bar and Tabs */}
+        {/* Top Location Bar and Tabs (UI remains the same) */}
         <View style={styles.topBar}>
           <View style={styles.locationContainer}>
             <Text style={styles.locationText}>📍 Sagar Cafe Location</Text>
@@ -229,7 +245,7 @@ export default function MainAppScreen({ navigation }) {
           <Text style={styles.cravingText}>What are you craving for?</Text>
           <FlatList
             horizontal
-            data={categoryList} 
+            data={categoryList} // Use dynamic list
             renderItem={renderCategoryItem}
             keyExtractor={(item) => item.id}
             showsHorizontalScrollIndicator={false}
@@ -238,7 +254,7 @@ export default function MainAppScreen({ navigation }) {
           <Text style={styles.whatsNewText}>New Arrivals & Specials</Text>
           <FlatList
             horizontal
-            data={menu.slice(0, 4)} 
+            data={menu.slice(0, 4)} // Show first 4 items from server
             renderItem={({ item }) => (
               <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.bannerImage} />
             )}
@@ -258,7 +274,7 @@ export default function MainAppScreen({ navigation }) {
                 />
             </View>
           ))}
-
+          {/* Add padding at the bottom so the cart overlay doesn't hide content */}
           <View style={{ height: 100 }} />
         </ScrollView>
       </>
@@ -338,11 +354,13 @@ export default function MainAppScreen({ navigation }) {
         {notification && (<View style={styles.notificationBanner}><Text style={styles.notificationText}>{notification}</Text></View>)}
         
         <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('Profile')}>
+          {/* Use the user's name from context */}
           <Text style={styles.profileButtonText}>👤 {user ? user.name : 'Account'}</Text>
         </TouchableOpacity>
 
         {renderView()}
 
+        {/* Floating Cart Overlay */}
         {cart.length > 0 && view === 'menu' && (
           <View style={styles.floatingCartContainer}>
             <View style={styles.cartSummary}>
@@ -355,6 +373,7 @@ export default function MainAppScreen({ navigation }) {
           </View>
         )}
 
+        {/* Bottom Navigation */}
         <View style={styles.bottomNav}>
           <TouchableOpacity style={styles.navItem} onPress={() => setView('menu')}><Text style={[styles.navText, view === 'menu' && styles.navActiveText]}>☕ Menu</Text></TouchableOpacity>
           <TouchableOpacity style={styles.navItem} onPress={() => setView('orderStatus')}><Text style={[styles.navText, view === 'orderStatus' && styles.navActiveText]}>🧾 Orders</Text></TouchableOpacity>
