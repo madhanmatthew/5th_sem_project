@@ -1,6 +1,4 @@
 /* === FINAL BACKEND (Full Server) === */
-/* === SECURITY TEMPORARILY DISABLED FOR DEVELOPMENT === */
-/* === NOW INCLUDES 'CATEGORY' IN MENU ROUTES === */
 
 require('dotenv').config();
 const express = require('express');
@@ -11,7 +9,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const verifyToken = require('./verifyToken');
+const verifyToken = require('./verifyToken'); // Make sure this file exists
 
 const app = express();
 const port = 3001;
@@ -21,7 +19,6 @@ app.use(cors());
 app.use(express.json());
 
 // FIXED STATIC FILE SERVING: Maps the virtual URL path '/images' to the physical folder './images'
-// This ensures your client app can load the food pictures.
 app.use('/images', express.static(path.join(__dirname, 'images'))); 
 
 // --- Socket.io Setup ---
@@ -34,18 +31,16 @@ const io = new Server(server, {
 });
 
 // --- PostgreSQL Connection ---
-const connectionString = process.env.DATABASE_URL || `postgresql://postgres:your_local_password@localhost:5432/restaurant_db`;
+// This will use your Render DATABASE_URL when deployed, or your local one when run locally
+const connectionString = process.env.DATABASE_URL || `postgresql://postgres:Madhan@1107@localhost:5432/restaurant_db`;
 
-// !!! IMPORTANT: Replace 'your_local_password' above with your *actual* local password
-// This lets you still test locally if you want to.
+// !!! IMPORTANT: Replace 'Madhan@1107' above with your *actual* local password
 
 const pool = new Pool({
   connectionString: connectionString,
   // This 'ssl' part is REQUIRED for Render's database
   ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false 
 });
-
-// === ADD THIS CODE ===
 
 // Check DB connection
 pool.query('SELECT NOW()', (err, res) => {
@@ -56,9 +51,12 @@ pool.query('SELECT NOW()', (err, res) => {
     }
 });
 
-// === END OF NEW CODE ===
-
 // --- Socket.io Connection ---
+function emitOrderUpdate(order) {
+    io.emit('order_update', order); 
+    console.log(`[Socket.io] Emitted status update for Order #${order.id}`);
+}
+
 io.on('connection', (socket) => {
     console.log('A user connected', socket.id);
     socket.on('trackOrder', (orderId) => {
@@ -70,10 +68,11 @@ io.on('connection', (socket) => {
 });
 
 /* ==================================
- AUTHENTICATION API (Still functional)
+ AUTHENTICATION API
 ==================================
 */
-// POST /api/auth/register
+
+// POST /api/auth/register (FIXED - Now creates a token)
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) {
@@ -82,11 +81,36 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-    const newUser = await pool.query(
+    
+    // 1. Create the user
+    const newUserResult = await pool.query(
       "INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email, is_admin",
       [name, email, hashedPassword]
     );
-    res.status(201).json(newUser.rows[0]);
+    const newUser = newUserResult.rows[0];
+
+    // 2. Create a token for the new user (This was the missing part)
+    const payload = {
+      user: {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        isAdmin: newUser.is_admin
+      }
+    };
+
+    // 3. Sign the token and send it back
+    jwt.sign(
+      payload,
+      'your_jwt_secret_key', // Use the same secret as your /login route
+      { expiresIn: '3h' },
+      (err, token) => {
+        if (err) throw err;
+        // Now it sends the token AND user, which the app expects
+        res.status(201).json({ token, user: payload.user }); 
+      }
+    );
+
   } catch (err) {
     console.error(err.message);
     if (err.code === '23505') {
@@ -96,6 +120,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+// POST /api/auth/login
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -135,11 +160,11 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 /* ==================================
- MENU API (Security Disabled & Category Added)
+ MENU API
 ==================================
 */
 
-// GET /api/menu (Public) - Now includes category
+// GET /api/menu (Public)
 app.get('/api/menu', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM menu_items ORDER BY id ASC');
@@ -150,14 +175,14 @@ app.get('/api/menu', async (req, res) => {
   }
 });
 
-// POST /api/menu (Admin Only) - UPDATED
-app.post('/api/menu',  verifyToken, async (req, res) => {
-  // const { name, price, image } = req.body; // Old
-  const { name, price, image, category } = req.body; // NEW
+// POST /api/menu (Admin Only)
+app.post('/api/menu', verifyToken, async (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).send('Access Denied');
+  const { name, price, image, category } = req.body;
   try {
     const newItem = await pool.query(
       "INSERT INTO menu_items (name, price, image, category) VALUES ($1, $2, $3, $4) RETURNING *",
-      [name, price, image || '/images/default.jpg', category] // NEW
+      [name, price, image || '/images/default.jpg', category]
     );
     res.status(201).json(newItem.rows[0]);
   } catch (err) {
@@ -166,15 +191,15 @@ app.post('/api/menu',  verifyToken, async (req, res) => {
   }
 });
 
-// PUT /api/menu/:id (Admin Only) - UPDATED
+// PUT /api/menu/:id (Admin Only)
 app.put('/api/menu/:id', verifyToken, async (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).send('Access Denied');
   const itemId = parseInt(req.params.id);
-  // const { name, price, image } = req.body; // Old
-  const { name, price, image, category } = req.body; // NEW
+  const { name, price, image, category } = req.body;
   try {
     const updatedItem = await pool.query(
       "UPDATE menu_items SET name = $1, price = $2, image = $3, category = $4 WHERE id = $5 RETURNING *",
-      [name, price, image, category, itemId] // NEW
+      [name, price, image, category, itemId]
     );
     if (updatedItem.rows.length === 0) {
       return res.status(404).send('Item not found');
@@ -187,7 +212,8 @@ app.put('/api/menu/:id', verifyToken, async (req, res) => {
 });
 
 // DELETE /api/menu/:id (Admin Only)
-app.delete('/api/menu/:id',  verifyToken,  async (req, res) => {
+app.delete('/api/menu/:id', verifyToken, async (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).send('Access Denied');
   const itemId = parseInt(req.params.id);
   try {
     await pool.query("DELETE FROM menu_items WHERE id = $1", [itemId]);
@@ -200,11 +226,13 @@ app.delete('/api/menu/:id',  verifyToken,  async (req, res) => {
 
 
 /* ==================================
- ORDER API (Security Disabled)
+ ORDER API
 ==================================
 */
+
 // GET /api/orders (Admin Only)
-app.get('/api/orders',  verifyToken,  async (req, res) => {
+app.get('/api/orders', verifyToken, async (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).send('Access Denied');
   try {
     const query = `
       SELECT 
@@ -227,8 +255,7 @@ app.get('/api/orders',  verifyToken,  async (req, res) => {
 });
 
 // GET /api/orders/my-order (Customer Only)
-app.get('/api/orders/my-order',  verifyToken,  async (req, res) => {
-  const testUserId = 1; 
+app.get('/api/orders/my-order', verifyToken, async (req, res) => {
   try {
     const orderQuery = `
       SELECT id, status, message, timestamp 
@@ -237,7 +264,7 @@ app.get('/api/orders/my-order',  verifyToken,  async (req, res) => {
       ORDER BY timestamp DESC
       LIMIT 1
     `;
-    const orderResult = await pool.query(orderQuery, [testUserId]);
+    const orderResult = await pool.query(orderQuery, [req.user.id]); // Uses the real user ID
     if (orderResult.rows.length === 0) {
       return res.status(404).send('No active order found');
     }
@@ -249,9 +276,9 @@ app.get('/api/orders/my-order',  verifyToken,  async (req, res) => {
 });
 
 // POST /api/orders (Customer Only)
-app.post('/api/orders',  verifyToken,  async (req, res) => {
+app.post('/api/orders', verifyToken, async (req, res) => {
   const { items } = req.body;
-  const userId = 1; 
+  const userId = req.user.id; // Uses the real user ID from the token
   const client = await pool.connect();
   
   try {
@@ -264,15 +291,13 @@ app.post('/api/orders',  verifyToken,  async (req, res) => {
     const newOrder = orderResult.rows[0];
     
     for (const item of items) {
-      // Find the menu_item_id from the database
-      // This is a fix for Manoj's app sending item names/ids that might not be in the DB
       const itemResult = await client.query('SELECT id FROM menu_items WHERE id = $1', [item.id]);
       if (itemResult.rows.length > 0) {
         const itemId = itemResult.rows[0].id;
         const itemQuery = 'INSERT INTO order_items (order_id, item_id, quantity) VALUES ($1, $2, $3)';
         await client.query(itemQuery, [newOrder.id, itemId, item.quantity]);
       } else {
-        console.warn(`Item not found in DB, skipping: ${item.name} (ID: ${item.id})`);
+        console.warn(`Item not found in DB, skipping: (ID: ${item.id})`);
       }
     }
     
@@ -293,7 +318,9 @@ app.post('/api/orders',  verifyToken,  async (req, res) => {
     const fullOrderResult = await client.query(fullOrderQuery, [newOrder.id]);
     const fullOrder = fullOrderResult.rows[0];
 
-    io.emit('new_order', fullOrder);
+    io.emit('new_order', fullOrder); // Emits to admin dashboard
+    emitOrderUpdate(newOrder); // Emits update to the customer
+    
     res.status(201).json(newOrder);
     
   } catch (err) {
@@ -306,7 +333,8 @@ app.post('/api/orders',  verifyToken,  async (req, res) => {
 });
 
 // PUT /api/orders/:id/status (Admin Only)
-app.put('/api/orders/:id/status',  verifyToken,  async (req, res) => {
+app.put('/api/orders/:id/status', verifyToken, async (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).send('Access Denied');
   const orderId = parseInt(req.params.id);
   const { status, message } = req.body;
   try {
@@ -316,7 +344,7 @@ app.put('/api/orders/:id/status',  verifyToken,  async (req, res) => {
       return res.status(404).send('Order not found');
     }
     const updatedOrder = result.rows[0];
-    io.emit('order_update', updatedOrder);
+    emitOrderUpdate(updatedOrder); // Emits update to the customer
     res.json(updatedOrder);
   } catch (err) {
     console.error(err.message);
