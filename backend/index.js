@@ -5,6 +5,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { Pool } = require('pg');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -18,7 +19,10 @@ const port = 3001;
 // --- Middleware ---
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+
+// FIXED STATIC FILE SERVING: Maps the virtual URL path '/images' to the physical folder './images'
+// This ensures your client app can load the food pictures.
+app.use('/images', express.static(path.join(__dirname, 'images'))); 
 
 // --- Socket.io Setup ---
 const server = http.createServer(app);
@@ -45,21 +49,24 @@ const pool = new Pool({
 
 // Check DB connection
 pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('Error connecting to PostgreSQL database', err.stack);
-  } else {
-    console.log('✅ Successfully connected to PostgreSQL database.');
-  }
+    if (err) {
+        console.error('Error connecting to PostgreSQL database', err.stack);
+    } else {
+        console.log('✅ Successfully connected to PostgreSQL database.');
+    }
 });
 
 // === END OF NEW CODE ===
 
 // --- Socket.io Connection ---
 io.on('connection', (socket) => {
-  console.log('A user connected', socket.id);
-  socket.on('disconnect', () => {
-    console.log('User disconnected', socket.id);
-  });
+    console.log('A user connected', socket.id);
+    socket.on('trackOrder', (orderId) => {
+        console.log(`Client ${socket.id} tracking Order #${orderId}`);
+    });
+    socket.on('disconnect', () => {
+        console.log('User disconnected', socket.id);
+    });
 });
 
 /* ==================================
@@ -89,7 +96,6 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// POST /api/auth/login
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {

@@ -2,24 +2,16 @@
 
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import {
-  StyleSheet,
-  Text,
-  View,
-  FlatList,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  Vibration,
-  ScrollView,
-  Alert,
+  StyleSheet, Text, View, FlatList, TouchableOpacity,
+  Image, ActivityIndicator, Vibration, ScrollView, Alert,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import io from 'socket.io-client';
-import axios from 'axios'; // We will use axios for authenticated requests
+import axios from 'axios'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // --- Import from our new helper files ---
-import { PRIMARY_COLOR, API_URL } from '../config';
+import API_URL, { PRIMARY_COLOR } from '../config'; // Corrected import
 import { useAuth } from '../AuthContext';
 
 // --- SOCKET.IO and API CLIENT SETUP ---
@@ -76,7 +68,6 @@ export default function MainAppScreen({ navigation }) {
         
         // 2. Fetch the menu from the backend
         // This is now the ONLY source of truth for the menu.
-        // All your hardcoded arrays are gone.
         const menuResponse = await apiClient.get('/api/menu');
         setMenu(menuResponse.data.sort((a, b) => a.id - b.id));
 
@@ -90,13 +81,15 @@ export default function MainAppScreen({ navigation }) {
     loadData();
   }, []); // Runs once on load
 
-  // --- SOCKET.IO INTEGRATION (Your logic, unchanged) ---
+  // --- SOCKET.IO INTEGRATION ---
   useEffect(() => {
     prevMessageRef.current = activeOrder?.message;
+    // Only track if an order is active AND we are on the status view
     if (!activeOrder?.id || view !== 'orderStatus') return;
 
     socket.on('connect', () => {
       console.log(`[Socket] Connected. Tracking Order #${activeOrder.id}`);
+      socket.emit('trackOrder', activeOrder.id);
     });
 
     socket.on('order_update', (updatedOrder) => {
@@ -115,9 +108,11 @@ export default function MainAppScreen({ navigation }) {
       console.log(`[Socket] Connection Error: ${err.message}`);
     });
 
+    // Clean up listeners when component unmounts or view changes
     return () => {
       socket.off('order_update');
       socket.off('connect');
+      socket.off('connect_error');
     };
   }, [activeOrder?.id, view]);
 
@@ -161,7 +156,7 @@ export default function MainAppScreen({ navigation }) {
 
   const totalCost = cart.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
 
-  // --- View Components ---
+  // --- View Components (Rendering logic remains the same) ---
   const renderCategoryItem = ({ item }) => (
     <View style={styles.categoryItem}>
       <Image source={{ uri: `${API_URL}${item.image}` }} style={styles.categoryImage} />
@@ -187,7 +182,8 @@ export default function MainAppScreen({ navigation }) {
     // Dynamically create the category list from the menu (FIXED)
     const dynamicCategories = menu.reduce((acc, item) => {
       const categoryName = item.category || 'Other Items';
-      if (!acc[categoryName]) {
+      // Filter out the 'Icon-Asset' category
+      if (categoryName !== 'Icon-Asset' && !acc[categoryName]) { 
         acc[categoryName] = { 
           id: categoryName, 
           name: categoryName, 
@@ -201,8 +197,11 @@ export default function MainAppScreen({ navigation }) {
     // Group menu items by category (FIXED)
     const groupedMenu = menu.reduce((acc, item) => {
       const category = item.category || 'Other Items';
-      if (!acc[category]) acc[category] = [];
-      acc[category].push(item);
+      // Filter out the 'Icon-Asset' category
+      if (category !== 'Icon-Asset') { 
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(item);
+      }
       return acc;
     }, {});
     
@@ -217,7 +216,7 @@ export default function MainAppScreen({ navigation }) {
 
     return (
       <>
-        {/* Top Location Bar */}
+        {/* Top Location Bar and Tabs (UI remains the same) */}
         <View style={styles.topBar}>
           <View style={styles.locationContainer}>
             <Text style={styles.locationText}>📍 Sagar Cafe Location</Text>
@@ -227,8 +226,6 @@ export default function MainAppScreen({ navigation }) {
             <Text style={styles.detectLocationText}>Change Location</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Delivery Tabs */}
         <View style={styles.deliveryTabs}>
           <TouchableOpacity style={[styles.tab, styles.activeTab]}>
             <Text style={styles.activeTabText}>Dine-in</Text>
@@ -254,7 +251,6 @@ export default function MainAppScreen({ navigation }) {
             showsHorizontalScrollIndicator={false}
             style={styles.categoryList}
           />
-
           <Text style={styles.whatsNewText}>New Arrivals & Specials</Text>
           <FlatList
             horizontal
@@ -267,7 +263,6 @@ export default function MainAppScreen({ navigation }) {
             style={styles.bannerList}
           />
 
-          {/* Main Menu (Grouped by Category) */}
           {Object.keys(groupedMenu).map(category => (
             <View key={category}>
                 <Text style={styles.menuSectionHeader}>{category}</Text>
@@ -279,7 +274,7 @@ export default function MainAppScreen({ navigation }) {
                 />
             </View>
           ))}
-
+          {/* Add padding at the bottom so the cart overlay doesn't hide content */}
           <View style={{ height: 100 }} />
         </ScrollView>
       </>
@@ -345,14 +340,10 @@ export default function MainAppScreen({ navigation }) {
 
   const renderView = () => {
     switch (view) {
-      case 'menu':
-        return <MenuView />;
-      case 'cartDetails':
-        return <CartDetailsView />;
-      case 'orderStatus':
-        return <OrderStatusView />;
-      default:
-        return <MenuView />;
+      case 'menu': return <MenuView />;
+      case 'cartDetails': return <CartDetailsView />;
+      case 'orderStatus': return <OrderStatusView />;
+      default: return <MenuView />;
     }
   };
 
@@ -362,9 +353,8 @@ export default function MainAppScreen({ navigation }) {
       <SafeAreaView style={styles.container}>
         {notification && (<View style={styles.notificationBanner}><Text style={styles.notificationText}>{notification}</Text></View>)}
         
-        {/* Profile Button (Navigate to ProfileScreen) */}
         <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('Profile')}>
-           {/* Use the user's name from context */}
+          {/* Use the user's name from context */}
           <Text style={styles.profileButtonText}>👤 {user ? user.name : 'Account'}</Text>
         </TouchableOpacity>
 
@@ -396,14 +386,13 @@ export default function MainAppScreen({ navigation }) {
   );
 }
 
-// --- STYLES (Your exact styles, unchanged) ---
+// --- STYLES ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   menuScrollView: { flex: 1, paddingHorizontal: 0 },
   header: { padding: 15, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
   headerText: { color: '#333', fontSize: 20, textAlign: 'center', fontWeight: 'bold' },
-
   profileButton: {
     position: 'absolute',
     top: 50, // Adjusted for SafeAreaView
@@ -419,31 +408,26 @@ const styles = StyleSheet.create({
       color: PRIMARY_COLOR,
       fontWeight: 'bold',
   },
-
   topBar: { backgroundColor: PRIMARY_COLOR, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   locationContainer: { paddingLeft: 10 },
   locationText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
   locationSubText: { color: '#f0f0f0', fontSize: 12 },
   detectLocationButton: { backgroundColor: '#fff', padding: 8, borderRadius: 5, marginRight: 10 },
   detectLocationText: { color: PRIMARY_COLOR, fontWeight: 'bold', fontSize: 14 },
-
   deliveryTabs: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
   tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 3, borderBottomColor: 'transparent' },
   activeTab: { borderBottomColor: PRIMARY_COLOR },
   tabText: { fontSize: 14, color: '#666', fontWeight: '600' },
   activeTabText: { fontSize: 14, color: PRIMARY_COLOR, fontWeight: 'bold' },
   tabSubText: { fontSize: 10, color: '#999' },
-
   cravingText: { fontSize: 20, fontWeight: 'bold', paddingHorizontal: 15, marginVertical: 15 },
   categoryList: { marginBottom: 15, paddingLeft: 15 },
   categoryItem: { width: 90, alignItems: 'center', marginRight: 10 },
   categoryImage: { width: 60, height: 60, borderRadius: 30, borderWidth: 1, borderColor: '#ccc' },
   categoryName: { fontSize: 12, textAlign: 'center', marginTop: 5, fontWeight: '500' },
-
   whatsNewText: { fontSize: 20, fontWeight: 'bold', paddingHorizontal: 15, marginTop: 5, marginBottom: 10 },
   bannerList: { marginBottom: 20, paddingLeft: 15 },
   bannerImage: { width: 300, height: 150, borderRadius: 8, marginRight: 10, resizeMode: 'cover' },
-  
   menuSectionHeader: { fontSize: 22, fontWeight: 'bold', paddingHorizontal: 15, marginTop: 20, marginBottom: 10, color: PRIMARY_COLOR },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: 'white', paddingHorizontal: 15 },
   dishImage: { width: 100, height: 100, borderRadius: 8, marginRight: 15 },
@@ -462,7 +446,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addButtonText: { color: PRIMARY_COLOR, fontWeight: 'bold' },
-
   floatingCartContainer: {
     backgroundColor: '#333',
     flexDirection: 'row',
@@ -487,23 +470,19 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   viewCartButtonText: { color: 'white', fontWeight: 'bold' },
-
   cartDetailsTitle: { fontSize: 22, fontWeight: 'bold', paddingHorizontal: 15, marginVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 10 },
   cartDetailItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
   cartDetailItemName: { flex: 3, fontSize: 16 },
   cartDetailItemQuantity: { flex: 1, textAlign: 'center', fontSize: 16 },
   cartDetailItemPrice: { flex: 1, textAlign: 'right', fontSize: 16, fontWeight: 'bold' },
-  
   cartContainer: { padding: 20, borderTopWidth: 1, borderColor: '#ccc', backgroundColor: 'white' },
   totalText: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, textAlign: 'right' },
   checkoutButton: { backgroundColor: PRIMARY_COLOR, padding: 15, borderRadius: 8 },
   orderButtonText: { color: 'white', textAlign: 'center', fontSize: 18, fontWeight: 'bold' },
-
   bottomNav: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#eee', paddingVertical: 5 },
   navItem: { padding: 10, alignItems: 'center' },
   navText: { fontSize: 12, color: '#333' },
   navActiveText: { fontWeight: 'bold', color: PRIMARY_COLOR },
-
   notificationBanner: {
     position: 'absolute',
     top: 50,
@@ -515,12 +494,11 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   notificationText: { color: 'white', textAlign: 'center', fontWeight: 'bold' },
-  statusContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: '#333' }, 
+  statusContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#333' }, 
   statusTitle: { fontSize: 26, fontWeight: 'bold', color: 'white' },
   statusMessage: { fontSize: 20, textAlign: 'center', marginVertical: 20, fontWeight: '500', color: 'white' },
   statusSubText: { fontSize: 14, color: '#f0f0f0', marginTop: 10 },
   newOrderButton: { backgroundColor: 'white', padding: 15, borderRadius: 8, marginTop: 30, width: '80%' },
-
   status_pending: { container: { backgroundColor: '#f0ad4e' }, text: { color: 'white' }, buttonText: { color: '#333' } },
   status_queued: { container: { backgroundColor: '#0275d8' }, text: { color: 'white' }, buttonText: { color: '#333' } },
   status_preparing: { container: { backgroundColor: '#5bc0de' }, text: { color: 'white' }, buttonText: { color: '#333' } },

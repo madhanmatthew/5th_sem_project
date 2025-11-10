@@ -1,27 +1,22 @@
-// customer-app/App.js
+// App.js
 
 import React from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-// --- Import our new helper files ---
 import { AuthProvider, useAuth } from './AuthContext';
 import { PRIMARY_COLOR } from './config';
 
-// --- Import our three screens ---
 import AuthScreen from './screens/AuthScreen';
 import MainAppScreen from './screens/MainAppScreen';
 import ProfileScreen from './screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
-// This new component contains all our navigation logic
 function AppNavigator() {
-  // Get the login state and loading status from our new AuthContext
   const { isLoading, userToken } = useAuth(); 
 
-  // Show a loading spinner while the app checks for a saved token
   if (isLoading) {
     return (
       <View style={styles.centered}>
@@ -34,16 +29,14 @@ function AppNavigator() {
     <NavigationContainer>
       <Stack.Navigator 
         screenOptions={{ 
-          headerShown: false, // Hide the default header
+          headerShown: false, 
         }}
       >
         {userToken == null ? (
-          // --- User is NOT logged in ---
-          // Show the AuthScreen (Login/Register)
+          // User is NOT logged in
           <Stack.Screen name="Auth" component={AuthScreen} />
         ) : (
-          // --- User IS logged in ---
-          // Show the main app screens
+          // User IS logged in
           <>
             <Stack.Screen name="Home" component={MainAppScreen} />
             <Stack.Screen 
@@ -63,8 +56,7 @@ function AppNavigator() {
   );
 }
 
-// This is the final App. We wrap the entire Navigator in the AuthProvider
-// so that all screens can access the login state.
+// Wrap the entire app in the AuthProvider
 export default function App() {
   return (
     <AuthProvider>
