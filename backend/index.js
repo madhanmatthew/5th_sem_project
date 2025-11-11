@@ -292,22 +292,60 @@ app.post('/api/orders', verifyToken, async (req, res) => {
 });
 
 // PUT /api/orders/:id/status (Admin Only)
+// THIS IS THE FIXED VERSION
 app.put('/api/orders/:id/status', verifyToken, async (req, res) => {
   if (!req.user.isAdmin) return res.status(403).send('Access Denied');
+
   const orderId = parseInt(req.params.id);
   const { status, message } = req.body;
+  const client = await pool.connect();
+
   try {
-    const query = 'UPDATE orders SET status = $1, message = $2 WHERE id = $3 RETURNING *';
-    const result = await pool.query(query, [status, message, orderId]);
+    // We will run multiple queries, so we need a transaction
+    await client.query('BEGIN');
+
+    // 1. Update the order status in the 'orders' table
+    const updateQuery = 'UPDATE orders SET status = $1, message = $2 WHERE id = $3 RETURNING *';
+    const result = await client.query(updateQuery, [status, message, orderId]);
+    
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).send('Order not found');
     }
-    const updatedOrder = result.rows[0];
-    io.emit('order_update', updatedOrder);
-    res.json(updatedOrder);
+    
+    // 2. Fetch the FULL order details (with items and username)
+    // This is the same query from your GET /api/orders route
+    const fullOrderQuery = `
+      SELECT 
+        o.id, o.status, o.message, o.timestamp, u.name as user_name,
+        (SELECT json_agg(json_build_object('name', mi.name, 'quantity', oi.quantity))
+         FROM order_items oi
+         JOIN menu_items mi ON oi.item_id = mi.id
+         WHERE oi.order_id = o.id
+        ) as items
+      FROM orders o
+      JOIN users u ON o.user_id = u.id
+      WHERE o.id = $1
+    `;
+    const fullOrderResult = await client.query(fullOrderQuery, [orderId]);
+    const fullOrder = fullOrderResult.rows[0];
+
+    // 3. Commit the transaction
+    await client.query('COMMIT');
+
+    // 4. Emit the FULL order object to all clients
+    // This stops the admin dashboard from crashing
+    io.emit('order_update', fullOrder); 
+    
+    // 5. Send the FULL order object back as the response
+    res.json(fullOrder);
+
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err.message);
     res.status(500).send('Server Error');
+  } finally {
+    client.release();
   }
 });
 
