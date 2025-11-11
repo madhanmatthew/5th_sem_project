@@ -23,7 +23,6 @@ function OrderManager() {
         headers: { 'x-auth-token': token }
       });
       
-      // Sort orders by status
       const statusOrder = { 'Pending': 1, 'Queued': 2, 'Preparing': 3, 'Ready': 4, 'Cancelled': 5, 'Completed': 6 };
       const sortedData = response.data.sort((a, b) => 
         statusOrder[a.status] - statusOrder[b.status] || b.id - a.id
@@ -41,7 +40,6 @@ function OrderManager() {
   const updateOrderStatus = async (orderId, status, message) => {
     try {
       const token = getAuthToken();
-      // We don't need to manually update state, the socket will do it
       await axios.put(`${API_URL}/api/orders/${orderId}/status`, 
         { status, message },
         { headers: { 'x-auth-token': token } }
@@ -80,24 +78,23 @@ function OrderManager() {
 
   // useEffect to set up socket listeners
   useEffect(() => {
-    // 1. Fetch initial data
     fetchOrders();
 
-    // 2. Listen for new orders
     socket.on('new_order', (newOrder) => {
       setOrders((prevOrders) => [newOrder, ...prevOrders]);
     });
 
-    // 3. Listen for status updates
     socket.on('order_update', (updatedOrder) => {
       setOrders((prevOrders) =>
         prevOrders.map(order =>
           order.id === updatedOrder.id ? updatedOrder : order
-        )
+        ).sort((a, b) => { // Re-sort the list on update
+          const statusOrder = { 'Pending': 1, 'Queued': 2, 'Preparing': 3, 'Ready': 4, 'Cancelled': 5, 'Completed': 6 };
+          return statusOrder[a.status] - statusOrder[b.status] || b.id - a.id;
+        })
       );
     });
 
-    // 4. Clean up listeners on unmount
     return () => {
       socket.off('new_order');
       socket.off('order_update');
@@ -106,6 +103,11 @@ function OrderManager() {
 
   if (isLoading) return <p>Loading orders...</p>;
   if (error) return <p style={{ color: 'red' }}>{error}</p>;
+
+  // --- NEW: Helper variable to check if order is finished ---
+  const isOrderFinished = (status) => {
+    return ['Completed', 'Cancelled'].includes(status);
+  };
 
   return (
     <div className="order-container">
@@ -120,7 +122,7 @@ function OrderManager() {
             </h3>
             <p>"{order.message}"</p>
             <ul>
-              {order.items.map((item, index) => (
+              {order.items && order.items.map((item, index) => (
                 <li key={index}>{item.quantity} x {item.name}</li>
               ))}
             </ul>
@@ -129,16 +131,37 @@ function OrderManager() {
               <select
                 value={order.status}
                 onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                disabled={['Completed', 'Cancelled'].includes(order.status)}
+                // --- THIS IS THE FIX ---
+                disabled={isOrderFinished(order.status)}
               >
                 <option value="Pending" disabled>Pending</option>
                 {Object.keys(statusOptions).map(status => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
-              <button onClick={() => handleSetTime(order.id)}>Set Custom Time</button>
-              <button className="complete-btn" onClick={() => updateOrderStatus(order.id, 'Completed', 'Your order has been completed.')}>Mark as Completed</button>
-              <button className="cancel-btn" onClick={() => handleCancelOrder(order.id)}>Cancel Order</button>
+              <button 
+                onClick={() => handleSetTime(order.id)}
+                // --- THIS IS THE FIX ---
+                disabled={isOrderFinished(order.status)}
+              >
+                Set Custom Time
+              </button>
+              <button 
+                className="complete-btn" 
+                onClick={() => updateOrderStatus(order.id, 'Completed', 'Your order has been completed.')}
+                // --- THIS IS THE FIX ---
+                disabled={isOrderFinished(order.status)}
+              >
+                Mark as Completed
+              </button>
+              <button 
+                className="cancel-btn" 
+                onClick={() => handleCancelOrder(order.id)}
+                // --- THIS IS THE FIX ---
+                disabled={isOrderFinished(order.status)}
+              >
+                Cancel Order
+              </button>
             </div>
           </div>
         ))
