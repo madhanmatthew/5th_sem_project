@@ -14,7 +14,7 @@ function Dashboard() {
   return (
     <div>
       <header className="App-header">
-        <h1>Restaurant Admin Dashboard</h1>
+        <h1>Sagar's Cafe Admin Dashboard</h1>
         <button onClick={handleLogout} className="logout-button">Logout</button>
       </header>
       <nav className="dashboard-nav">
