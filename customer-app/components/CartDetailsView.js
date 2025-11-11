@@ -9,13 +9,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PRIMARY_COLOR } from '../config';
+import { PRIMARY_COLOR, SECONDARY_COLOR, BACKGROUND_COLOR, SURFACE_COLOR, TEXT_COLOR, MUTED_COLOR } from '../config';
 
 export const CartDetailsView = ({ cart, totalCost, isLoading, setView, placeOrder }) => (
   <SafeAreaView style={styles.container}>
     <View style={styles.simpleHeader}>
       <TouchableOpacity onPress={() => setView('menu')}>
-        <Text style={{ fontSize: 18, color: PRIMARY_COLOR }}>{'< Back to Menu'}</Text>
+        <Text style={{ fontSize: 18, color: SECONDARY_COLOR }}>{'< Back to Menu'}</Text>
       </TouchableOpacity>
     </View>
     <ScrollView style={{ flex: 1 }}>
@@ -38,15 +38,15 @@ export const CartDetailsView = ({ cart, totalCost, isLoading, setView, placeOrde
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f6f7fb' },
-  simpleHeader: { padding: 15, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  cartDetailsTitle: { fontSize: 22, fontWeight: 'bold', paddingHorizontal: 16, marginVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 6 },
-  cartDetailItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  cartDetailItemName: { flex: 3, fontSize: 16 },
-  cartDetailItemQuantity: { flex: 1, textAlign: 'center', fontSize: 16 },
-  cartDetailItemPrice: { flex: 1, textAlign: 'right', fontSize: 16, fontWeight: 'bold' },
-  cartContainer: { padding: 20, borderTopWidth: 1, borderColor: '#ccc', backgroundColor: 'white' },
-  totalText: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, textAlign: 'right' },
-  checkoutButton: { backgroundColor: PRIMARY_COLOR, padding: 15, borderRadius: 10 },
-  orderButtonText: { color: 'white', textAlign: 'center', fontSize: 18, fontWeight: 'bold' },
+  container: { flex: 1, backgroundColor: BACKGROUND_COLOR },
+  simpleHeader: { padding: 15, backgroundColor: SURFACE_COLOR, borderBottomWidth: 1, borderBottomColor: '#333' },
+  cartDetailsTitle: { fontSize: 22, fontWeight: 'bold', paddingHorizontal: 16, marginVertical: 14, borderBottomWidth: 1, borderBottomColor: '#333', paddingBottom: 6, color: TEXT_COLOR },
+  cartDetailItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#333' },
+  cartDetailItemName: { flex: 3, fontSize: 16, color: TEXT_COLOR },
+  cartDetailItemQuantity: { flex: 1, textAlign: 'center', fontSize: 16, color: TEXT_COLOR },
+  cartDetailItemPrice: { flex: 1, textAlign: 'right', fontSize: 16, fontWeight: 'bold', color: TEXT_COLOR },
+  cartContainer: { padding: 20, borderTopWidth: 1, borderColor: '#333', backgroundColor: SURFACE_COLOR },
+  totalText: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, textAlign: 'right', color: TEXT_COLOR },
+  checkoutButton: { backgroundColor: SECONDARY_COLOR, padding: 15, borderRadius: 10 },
+  orderButtonText: { color: TEXT_COLOR, textAlign: 'center', fontSize: 18, fontWeight: 'bold' },
 });

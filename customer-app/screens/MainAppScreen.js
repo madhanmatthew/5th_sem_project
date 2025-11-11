@@ -10,14 +10,22 @@ import {
   Alert,
   Platform,
   UIManager,
-  TouchableOpacity, // <-- THIS WAS THE MISSING IMPORT
+  TouchableOpacity, // <-- This was the previous fix
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import io from 'socket.io-client';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import API_URL, { PRIMARY_COLOR } from '../config';
+// --- THIS IS THE CORRECTED IMPORT ---
+import API_URL, {
+  PRIMARY_COLOR,
+  BACKGROUND_COLOR,
+  SURFACE_COLOR,
+  TEXT_COLOR,
+  MUTED_COLOR, // <-- This was the missing import
+  SECONDARY_COLOR // <-- Also needed for the cart button
+} from '../config';
 import { useAuth } from '../AuthContext';
 
 // Import the new components
@@ -193,8 +201,7 @@ export default function MainAppScreen({ navigation }) {
           />
         );
       default:
-        // This should never happen, but good to have a fallback
-        return <MenuView />;
+        return <MenuView />; // Fallback
     }
   };
 
@@ -239,12 +246,12 @@ export default function MainAppScreen({ navigation }) {
   );
 }
 
-// ---------- STYLES ----------
+// ---------- STYLES (Dark Mode) ----------
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f6f7fb' },
+  container: { flex: 1, backgroundColor: BACKGROUND_COLOR },
   // Floating cart
   floatingCartContainer: {
-    backgroundColor: '#1c1f27',
+    backgroundColor: SURFACE_COLOR,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -256,31 +263,28 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#444'
   },
   cartSummary: { flexDirection: 'column' },
-  cartCountText: { color: '#fff', fontSize: 13, opacity: 0.8 },
-  cartTotalText: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  viewCartButton: { backgroundColor: PRIMARY_COLOR, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },
-  viewCartButtonText: { color: '#fff', fontWeight: '800' },
+  cartCountText: { color: MUTED_COLOR, fontSize: 13, opacity: 0.8 },
+  cartTotalText: { color: TEXT_COLOR, fontSize: 18, fontWeight: '800' },
+  viewCartButton: { backgroundColor: SECONDARY_COLOR, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },
+  viewCartButtonText: { color: TEXT_COLOR, fontWeight: '800' },
 
   // Bottom nav
   bottomNav: { 
     flexDirection: 'row', 
     justifyContent: 'space-around', 
-    backgroundColor: 'white', 
+    backgroundColor: SURFACE_COLOR, 
     borderTopWidth: 1, 
-    borderTopColor: '#eee', 
+    borderTopColor: '#333', 
     paddingVertical: 6,
     height: 60,
   },
   navItem: { padding: 10, alignItems: 'center', flex: 1 },
-  navText: { fontSize: 12, color: '#555' },
-  navActiveText: { fontWeight: 'bold', color: PRIMARY_COLOR },
+  navText: { fontSize: 12, color: MUTED_COLOR },
+  navActiveText: { fontWeight: 'bold', color: SECONDARY_COLOR },
 
   // Notification
   notificationBanner: { 
@@ -288,7 +292,7 @@ const styles = StyleSheet.create({
     top: 0, // Start hidden above screen
     left: 20, 
     right: 20, 
-    backgroundColor: PRIMARY_COLOR, 
+    backgroundColor: SECONDARY_COLOR, 
     padding: 14, 
     borderRadius: 10, 
     zIndex: 1000,
@@ -298,5 +302,5 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 10,
   },
-  notificationText: { color: 'white', textAlign: 'center', fontWeight: 'bold' },
+  notificationText: { color: TEXT_COLOR, textAlign: 'center', fontWeight: 'bold' },
 });

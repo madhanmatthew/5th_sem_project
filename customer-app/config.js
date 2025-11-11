@@ -1,13 +1,13 @@
 // config.js
 
-// This is your deployed Render URL.
 const API_URL = 'https://restaurant-app-backend-qwfb.onrender.com'; 
 
-// --- NEW COLOR PALETTE ---
-// This is the "magic" update for the colors.
-export const PRIMARY_COLOR = '#008080';   // Vibrant Teal (Replaces the old brown)
-export const SECONDARY_COLOR = '#F4A261'; // Warm Orange (for "ADD" buttons)
-export const BACKGROUND_COLOR = '#f6f7fb'; // Clean Off-white (Replaces #f5f5f5)
+// --- NEW DARK MODE PALETTE ---
+export const PRIMARY_COLOR = '#1C1C1C';     // Rich Charcoal
+export const SECONDARY_COLOR = '#D27840';  // Rusty Orange
+export const BACKGROUND_COLOR = '#121212'; // True Black
+export const SURFACE_COLOR = '#2C2C2C';    // Dark Grey (for cards)
+export const TEXT_COLOR = '#FFFFFF';       // White
+export const MUTED_COLOR = '#9E9E9E';      // Light Grey
 
-// This default export is still used for the API URL
 export default API_URL;

@@ -1,49 +1,56 @@
 // App.js
 
 import React from 'react';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { ActivityIndicator, View, StyleSheet, StatusBar } from 'react-native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-// --- Import our new helper files ---
 import { AuthProvider, useAuth } from './AuthContext';
-import { PRIMARY_COLOR } from './config';
+import { PRIMARY_COLOR, BACKGROUND_COLOR, TEXT_COLOR, SURFACE_COLOR } from './config';
 
-// --- Import our three screens ---
 import AuthScreen from './screens/AuthScreen';
 import MainAppScreen from './screens/MainAppScreen';
 import ProfileScreen from './screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
-// This new component contains all our navigation logic
+// Create a custom Dark Theme for the navigator
+const DarkTheme = {
+  ...DefaultTheme,
+  dark: true,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: PRIMARY_COLOR,
+    background: BACKGROUND_COLOR,
+    card: SURFACE_COLOR,
+    text: TEXT_COLOR,
+    border: SURFACE_COLOR,
+  },
+};
+
 function AppNavigator() {
-  // Get the login state and loading status from our new AuthContext
   const { isLoading, userToken } = useAuth(); 
 
-  // Show a loading spinner while the app checks for a saved token
   if (isLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+        <ActivityIndicator size="large" color={TEXT_COLOR} />
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={DarkTheme}>
+      {/* Set the status bar to light text for our dark background */}
+      <StatusBar barStyle="light-content" />
       <Stack.Navigator 
         screenOptions={{ 
-          headerShown: false, // Hide the default header
+          headerShown: false, 
         }}
       >
         {userToken == null ? (
-          // --- User is NOT logged in ---
-          // Show the AuthScreen (Login/Register)
           <Stack.Screen name="Auth" component={AuthScreen} />
         ) : (
-          // --- User IS logged in ---
-          // Show the main app screens
           <>
             <Stack.Screen name="Home" component={MainAppScreen} />
             <Stack.Screen 
@@ -52,8 +59,8 @@ function AppNavigator() {
               options={{ 
                 headerShown: true, 
                 title: 'My Account',
-                headerStyle: { backgroundColor: PRIMARY_COLOR },
-                headerTintColor: '#fff'
+                headerStyle: { backgroundColor: SURFACE_COLOR },
+                headerTintColor: TEXT_COLOR,
               }} 
             />
           </>
@@ -63,8 +70,6 @@ function AppNavigator() {
   );
 }
 
-// This is the final App. We wrap the entire Navigator in the AuthProvider
-// so that all screens can access the login state.
 export default function App() {
   return (
     <AuthProvider>
@@ -74,5 +79,10 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  centered: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: BACKGROUND_COLOR 
+  },
 });
