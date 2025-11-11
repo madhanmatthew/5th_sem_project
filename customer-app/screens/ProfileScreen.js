@@ -2,10 +2,9 @@
 
 import React, { useContext } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context'; // Import SafeAreaView
+import { SafeAreaView } from 'react-native-safe-area-context'; 
 
 // --- FIXED IMPORTS ---
-// Import from our new helper files, NOT from App.js
 import { PRIMARY_COLOR } from '../config';
 import { useAuth } from '../AuthContext';
 
@@ -23,10 +22,10 @@ export default function ProfileScreen({ navigation }) {
         <SafeAreaView style={styles.container}>
              {/* Add a simple header to go back */}
              <View style={styles.header}>
-              <TouchableOpacity onPress={() => navigation.goBack()}>
-                <Text style={styles.headerButton}>&lt; Back to Menu</Text>
-              </TouchableOpacity>
-            </View>
+               <TouchableOpacity onPress={() => navigation.goBack()}>
+                 <Text style={styles.headerButton}>&lt; Back to Menu</Text>
+               </TouchableOpacity>
+             </View>
 
             <View style={styles.content}>
                 <Text style={styles.title}>Your Sagar Cafe Account</Text>
@@ -56,7 +55,7 @@ export default function ProfileScreen({ navigation }) {
     );
 }
 
-// --- STYLES (Your file, with additions) ---
+// --- STYLES ---
 const styles = StyleSheet.create({
     container: { 
         flex: 1, 

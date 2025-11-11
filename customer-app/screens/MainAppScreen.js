@@ -11,7 +11,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // --- Import from our new helper files ---
-import API_URL, { PRIMARY_COLOR } from '../config'; // Corrected import
+import API_URL, { PRIMARY_COLOR } from '../config'; 
 import { useAuth } from '../AuthContext';
 
 // --- SOCKET.IO and API CLIENT SETUP ---
@@ -304,7 +304,7 @@ export default function MainAppScreen({ navigation }) {
           {isLoading ? (
             <ActivityIndicator color="white" />
           ) : (
-            <Text style={styles.orderButtonText}>PROCEED TO PAYMENT</Text>
+            <Text style={styles.orderButtonText}>PLACE ORDER</Text>
           )}
         </TouchableOpacity>
       </View>
