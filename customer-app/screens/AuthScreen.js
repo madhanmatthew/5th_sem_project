@@ -62,7 +62,7 @@ export default function AuthScreen() {
       {/* 1. The top header (brown) */}
       <View style={styles.headerContainer}>
         <Text style={styles.headerTitle}>Hello!</Text>
-        <Text style={styles.headerSubtitle}>Welcome to Sagar Cafe</Text>
+        <Text style={styles.headerSubtitle}>Welcome to Sagar's Cafe</Text>
         <Text style={styles.headerIcon}>☕</Text>
       </View>
 
