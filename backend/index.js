@@ -349,6 +349,61 @@ app.put('/api/orders/:id/status', verifyToken, async (req, res) => {
   }
 });
 
+/* ==================================
+ ADMIN STATS API
+==================================
+*/
+// GET /api/admin/stats (Admin Only)
+app.get('/api/admin/stats', verifyToken, async (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).send('Access Denied');
+
+  try {
+    // We get the current date in the server's time zone
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to midnight this morning
+
+    // Query 1: Calculate total revenue from COMPLETED orders for today
+    const revenueQuery = `
+      SELECT COALESCE(SUM(mi.price * oi.quantity), 0) AS total_revenue
+      FROM orders o
+      JOIN order_items oi ON o.id = oi.order_id
+      JOIN menu_items mi ON oi.item_id = mi.id
+      WHERE o.status = 'Completed' AND o.timestamp >= $1;
+    `;
+    const revenueResult = await pool.query(revenueQuery, [today]);
+    const totalRevenue = parseFloat(revenueResult.rows[0].total_revenue).toFixed(2);
+
+    // Query 2: Count COMPLETED orders for today
+    const completedQuery = `
+      SELECT COUNT(*) AS completed_count
+      FROM orders
+      WHERE status = 'Completed' AND timestamp >= $1;
+    `;
+    const completedResult = await pool.query(completedQuery, [today]);
+    const completedCount = parseInt(completedResult.rows[0].completed_count, 10);
+
+    // Query 3: Count CANCELLED orders for today
+    const cancelledQuery = `
+      SELECT COUNT(*) AS cancelled_count
+      FROM orders
+      WHERE status = 'Cancelled' AND timestamp >= $1;
+    `;
+    const cancelledResult = await pool.query(cancelledQuery, [today]);
+    const cancelledCount = parseInt(cancelledResult.rows[0].cancelled_count, 10);
+
+    // Send all 3 stats back as a single JSON object
+    res.json({
+      totalRevenue,
+      completedCount,
+      cancelledCount
+    });
+
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
 // --- Start the Server ---
 server.listen(port, () => {
   console.log(`✅ Backend server with Socket.io running at http://localhost:${port}`);
