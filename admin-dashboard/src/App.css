@@ -291,3 +291,53 @@ body {
   border: 1px solid #bbb;
 }
 
+/* --- ADD THIS NEW CSS AT THE END --- */
+
+/* --- Stats Display --- */
+.stats-container {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background-color: #fff;
+  border-bottom: 1px solid #eee;
+  flex-wrap: wrap; /* Allow cards to wrap on small screens */
+}
+
+.stat-card {
+  flex-basis: 250px; /* Each card has a base width */
+  flex-grow: 1; /* Allow cards to grow */
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  font-size: 1rem;
+  color: #fff;
+  opacity: 0.9;
+}
+
+/* Specific card colors */
+.stat-card.revenue {
+  background-color: #5cb85c; /* Green */
+  color: white;
+}
+.stat-card.completed {
+  background-color: #0275d8; /* Blue */
+  color: white;
+}
+.stat-card.cancelled {
+  background-color: #d9534f; /* Red */
+  color: white;
+}
