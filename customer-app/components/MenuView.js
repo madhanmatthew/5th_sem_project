@@ -33,7 +33,7 @@ const PromoSheet = ({ onClose }) => {
     <Animated.View style={[styles.promoSheet, { transform: [{ translateY: y }] }]}>
       <Text style={styles.promoBadge}>LIMITED OFFER</Text>
       <Text style={styles.promoTitle}>Singles Day Treat!</Text>
-      <Text style={styles.promoSubtitle}>Get a FREE* Burger at Sagar Café</Text>
+      <Text style={styles.promoSubtitle}>Get a FREE* Burger at Sagar's Café</Text>
       <TouchableOpacity style={styles.promoBtn}>
         <Text style={styles.promoBtnTxt}>BOOK NOW</Text>
       </TouchableOpacity>
@@ -176,7 +176,7 @@ export const MenuView = ({ menu, isLoading, user, navigation, activeTab, setActi
     <>
       <Animated.View style={[styles.headerWrap, { height: headerHeight }]}>
         <View style={styles.headerRow}>
-          <Text style={styles.brand}>Sagar Café</Text>
+          <Text style={styles.brand}>Sagar's Café</Text>
           <TouchableOpacity style={styles.accBtn} onPress={() => navigation.navigate('Profile')}>
             <Text style={styles.accText}>👤 {user?.name || 'Account'}</Text>
           </TouchableOpacity>
