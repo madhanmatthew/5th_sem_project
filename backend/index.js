@@ -16,7 +16,7 @@ const port = 3001;
 // --- Middleware ---
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); 
+app.use('/images', express.static(path.join(__dirname, 'images'))); 
 
 // --- Socket.io Setup ---
 const server = http.createServer(app);
