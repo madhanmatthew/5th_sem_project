@@ -118,7 +118,7 @@ Setup Backend:
 
 cd backend
 npm install
-# Create a .env file with your DATABASE_URL
+Create a .env file with your DATABASE_URL
 node index.js
 
 
